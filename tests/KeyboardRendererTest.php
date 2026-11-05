@@ -231,4 +231,113 @@ class KeyboardRendererTest extends TestCase
         $this->assertStringNotContainsString('<script>', $html);
         $this->assertStringContainsString('&lt;script&gt;', $html);
     }
+
+    public function testLimitedModeDoesNotDisplayRemainingCounter(): void
+    {
+        $def = KeyboardDefinition::fromParameters('test', 'A,B', '5');
+        $renderer = new KeyboardRenderer($def, ['A' => 0, 'B' => 1], [0, 1], [0], 4);
+
+        $html = $renderer->render();
+
+        // The remaining allowance is implicit from the stroke history:
+        // no counter is displayed.
+        $this->assertStringNotContainsString('id="remaining-count"', $html);
+        $this->assertStringNotContainsString('class="remaining"', $html);
+        $this->assertStringNotContainsString('Remaining:', $html);
+    }
+
+    public function testLimitedModeExposesRemainingAsDataAttribute(): void
+    {
+        $def = KeyboardDefinition::fromParameters('test', 'A,B', '5');
+        $renderer = new KeyboardRenderer($def, ['A' => 0, 'B' => 1], [0, 1], [0], 4);
+
+        $html = $renderer->render();
+
+        $this->assertStringContainsString('data-remaining="4"', $html);
+    }
+
+    public function testMainModeHasNoRemainingAttribute(): void
+    {
+        $def = KeyboardDefinition::fromParameters('test', 'A,B', null);
+        $renderer = new KeyboardRenderer($def, ['A' => 0, 'B' => 1], [0, 1], [], 0);
+
+        $this->assertStringNotContainsString('data-remaining', $renderer->render());
+    }
+
+    public function testEraseButtonUsesEraseToTheLeftSymbol(): void
+    {
+        $def = KeyboardDefinition::fromParameters('test', 'A,B', '5');
+        $renderer = new KeyboardRenderer($def, ['A' => 0, 'B' => 1], [0, 1], [0], 4);
+
+        $html = $renderer->render();
+
+        // U+232B ERASE TO THE LEFT as the button label
+        $this->assertStringContainsString('>⌫</button>', $html);
+    }
+
+    public function testHistoryRowIsAboveGridAndEraseSitsInsideIt(): void
+    {
+        $def = KeyboardDefinition::fromParameters('test', 'A,B', '5');
+        $renderer = new KeyboardRenderer($def, ['A' => 0, 'B' => 1], [0, 1], [0, 1], 3);
+
+        $html = $renderer->render();
+
+        $historyPos = strpos($html, 'id="history"');
+        $erasePos = strpos($html, 'id="erase"');
+        $gridPos = strpos($html, 'kb-grid');
+
+        $this->assertNotFalse($historyPos);
+        $this->assertNotFalse($erasePos);
+        $this->assertNotFalse($gridPos);
+        // History on top of the keyboard...
+        $this->assertLessThan($gridPos, $historyPos);
+        // ...with the erase control in the history row, after the keystrokes
+        $this->assertGreaterThan($historyPos, $erasePos);
+        $this->assertLessThan($gridPos, $erasePos);
+    }
+
+    public function testHistoryItemsComeBeforeEraseButton(): void
+    {
+        $def = KeyboardDefinition::fromParameters('test', 'A,B', '5');
+        $renderer = new KeyboardRenderer($def, ['A' => 0, 'B' => 1], [0, 1], [0, 1], 3);
+
+        $html = $renderer->render();
+
+        $this->assertLessThan(
+            strpos($html, 'id="erase"'),
+            strpos($html, 'history-item')
+        );
+    }
+
+    public function testDeviceWrapperCapsWidthToKeySize(): void
+    {
+        $def = KeyboardDefinition::fromParameters('test', 'A,B', null);
+        $renderer = new KeyboardRenderer($def, ['A' => 0, 'B' => 1], [0, 1], [], 0);
+
+        $html = $renderer->render();
+
+        // 2 columns: the device is at most 2 key widths plus one gap wide
+        $this->assertStringContainsString('class="kb-device"', $html);
+        $this->assertStringContainsString(
+            'width: min(92vw, calc(2 * var(--kb-key-max) + 1 * var(--kb-gap)))',
+            $html
+        );
+    }
+
+    public function testDeviceWrapperWidthFor5x5Grid(): void
+    {
+        $labels = [];
+        for ($i = 0; $i < 25; $i++) {
+            $labels[] = 'K' . $i;
+        }
+        $def = KeyboardDefinition::fromParameters('test', implode(',', $labels), null);
+        $renderer = new KeyboardRenderer($def, array_combine($labels, range(0, 24)), range(0, 24), [], 0);
+
+        $html = $renderer->render();
+
+        $this->assertStringContainsString(
+            'width: min(92vw, calc(5 * var(--kb-key-max) + 4 * var(--kb-gap)))',
+            $html
+        );
+    }
 }

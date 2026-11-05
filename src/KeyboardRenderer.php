@@ -8,9 +8,9 @@ require_once __DIR__ . '/KeyboardDefinition.php';
  * This is a domain service - it takes data and produces HTML, no HTTP context.
  *
  * Static styling lives in keyboard.css and static client-side behaviour in
- * keyboard.js. Only the per-request values are generated here: the grid
- * geometry (column count), the device name, and the mode flag, passed as
- * data attributes that keyboard.js reads.
+ * keyboard.js. Only the per-request values are generated here: the device
+ * width (column count), the device name, the mode flag, and the remaining
+ * allowance, passed as data attributes that keyboard.js reads.
  */
 class KeyboardRenderer
 {
@@ -51,6 +51,18 @@ class KeyboardRenderer
     {
         $isLimited = $this->definition->mode === 'limited';
         $deviceName = $this->definition->deviceName;
+        $cols = $this->definition->cols;
+
+        // The remaining allowance is not displayed (it is implicit from the
+        // stroke history); it is passed as a data attribute so keyboard.js
+        // can disable the keys when the limit is reached.
+        $remainingAttr = $isLimited ? ' data-remaining="' . $this->remaining . '"' : '';
+
+        // The device width is capped so the square cells never exceed
+        // --kb-key-max: the component reads as a keyboard, not big buttons,
+        // and the whole device fits on a phone screen. The column count
+        // depends on the keyboard, so this is the only per-request CSS.
+        $widthStyle = 'width: min(92vw, calc(' . $cols . ' * var(--kb-key-max) + ' . ($cols - 1) . ' * var(--kb-gap)))';
 
         $html = '<!DOCTYPE html>
 <html lang="en">
@@ -60,10 +72,11 @@ class KeyboardRenderer
 <title>Keyboard</title>
 <link rel="stylesheet" href="keyboard.css">
 </head>
-<body data-device="' . htmlspecialchars($deviceName, ENT_QUOTES) . '" data-limited="' . ($isLimited ? '1' : '0') . '">
-' . $this->renderGrid() . '
+<body data-device="' . htmlspecialchars($deviceName, ENT_QUOTES) . '" data-limited="' . ($isLimited ? '1' : '0') . '"' . $remainingAttr . '>
+<div class="kb-device" style="' . $widthStyle . '">
+' . $this->renderHistory($isLimited) . $this->renderGrid() . '
+</div>
 <div class="kb-status" id="kb-status"></div>
-' . $this->renderLimitedExtras($isLimited) . '
 <script src="keyboard.js"></script>
 </body>
 </html>';
@@ -76,8 +89,8 @@ class KeyboardRenderer
         $cols = $this->definition->cols;
         $rows = $this->definition->rows;
 
-        // The column count depends on the keyboard, so this one rule is the
-        // only per-request CSS; everything else comes from keyboard.css.
+        // The column count depends on the keyboard, so this rule is emitted
+        // per request; everything else comes from keyboard.css.
         $html = '<div class="kb-grid" style="grid-template-columns: repeat(' . $cols . ', 1fr)">';
 
         $index = 0;
@@ -118,7 +131,12 @@ class KeyboardRenderer
         return false;
     }
 
-    private function renderLimitedExtras(bool $isLimited): string
+    /**
+     * Render the limited-mode stroke history row, displayed above the grid.
+     * Each recorded keystroke is a cell in the row; the erase control sits
+     * in the same row, immediately after the last displayed keystroke.
+     */
+    private function renderHistory(bool $isLimited): string
     {
         if (!$isLimited) {
             return '';
@@ -131,12 +149,11 @@ class KeyboardRenderer
                 $html .= '<span class="history-item">' . htmlspecialchars($label) . '</span>';
             }
         }
-        $html .= '</div>';
-
-        $html .= '<div class="remaining" id="remaining">Remaining: <span id="remaining-count">' . $this->remaining . '</span></div>';
+        // U+232B ERASE TO THE LEFT. Not a keyboard cell: no registry entry.
         $html .= '<button type="button" class="erase-btn" id="erase"' .
                  (empty($this->history) ? ' disabled' : '') .
-                 '>Erase last</button>';
+                 '>⌫</button>';
+        $html .= '</div>';
 
         return $html;
     }
