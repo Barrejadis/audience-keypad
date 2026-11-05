@@ -2,41 +2,30 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../src/Constants.php';
+require_once __DIR__ . '/../src/KvStore.php';
 require_once __DIR__ . '/../src/AliasResolver.php';
+require_once __DIR__ . '/InMemoryKvStore.php';
 
 use PHPUnit\Framework\TestCase;
 
 class AliasResolverTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        if (function_exists('apcu_clear_cache')) {
-            apcu_clear_cache();
-        }
-    }
-
     public function testResolveUnknownAlias(): void
     {
-        if (!function_exists('apcu_store')) {
-            $this->markTestSkipped('APCu extension not available');
-        }
-
-        $result = AliasResolver::resolve('unknown');
+        $resolver = new AliasResolver(new InMemoryKvStore());
+        $result = $resolver->resolve('unknown');
         $this->assertNull($result);
     }
 
     public function testResolveExistingAlias(): void
     {
-        if (!function_exists('apcu_store')) {
-            $this->markTestSkipped('APCu extension not available');
-        }
-
-        // Create an alias
+        $store = new InMemoryKvStore();
         $definition = json_encode(['kb' => 'my-device', 'keys' => 'A,B,C', 'limit' => '5']);
-        apcu_store('alias:my-alias', $definition);
-        
-        $result = AliasResolver::resolve('my-alias');
-        
+        $store->set('alias:my-alias', $definition);
+
+        $resolver = new AliasResolver($store);
+        $result = $resolver->resolve('my-alias');
+
         $this->assertNotNull($result);
         $this->assertEquals('my-device', $result['kb']);
         $this->assertEquals('A,B,C', $result['keys']);
@@ -45,16 +34,14 @@ class AliasResolverTest extends TestCase
 
     public function testResolveAliasWithoutLimit(): void
     {
-        if (!function_exists('apcu_store')) {
-            $this->markTestSkipped('APCu extension not available');
-        }
-
+        $store = new InMemoryKvStore();
         // Create an alias without limit (main mode)
         $definition = json_encode(['kb' => 'my-device', 'keys' => 'A,B']);
-        apcu_store('alias:main-alias', $definition);
-        
-        $result = AliasResolver::resolve('main-alias');
-        
+        $store->set('alias:main-alias', $definition);
+
+        $resolver = new AliasResolver($store);
+        $result = $resolver->resolve('main-alias');
+
         $this->assertNotNull($result);
         $this->assertEquals('my-device', $result['kb']);
         $this->assertEquals('A,B', $result['keys']);
@@ -63,47 +50,35 @@ class AliasResolverTest extends TestCase
 
     public function testExistsKnownAlias(): void
     {
-        if (!function_exists('apcu_store')) {
-            $this->markTestSkipped('APCu extension not available');
-        }
-
+        $store = new InMemoryKvStore();
         $definition = json_encode(['kb' => 'my-device', 'keys' => 'A']);
-        apcu_store('alias:known', $definition);
-        
-        $this->assertTrue(AliasResolver::exists('known'));
+        $store->set('alias:known', $definition);
+
+        $resolver = new AliasResolver($store);
+        $this->assertTrue($resolver->exists('known'));
     }
 
     public function testExistsUnknownAlias(): void
     {
-        if (!function_exists('apcu_store')) {
-            $this->markTestSkipped('APCu extension not available');
-        }
-
-        $this->assertFalse(AliasResolver::exists('unknown'));
+        $resolver = new AliasResolver(new InMemoryKvStore());
+        $this->assertFalse($resolver->exists('unknown'));
     }
 
     public function testInvalidAliasName(): void
     {
-        if (!function_exists('apcu_store')) {
-            $this->markTestSkipped('APCu extension not available');
-        }
-
-        $this->assertFalse(AliasResolver::exists('invalid name!'));
-        $result = AliasResolver::resolve('invalid name!');
+        $resolver = new AliasResolver(new InMemoryKvStore());
+        $this->assertFalse($resolver->exists('invalid name!'));
+        $result = $resolver->resolve('invalid name!');
         $this->assertNull($result);
     }
 
     public function testValidAliasNamePattern(): void
     {
-        if (!function_exists('apcu_store')) {
-            $this->markTestSkipped('APCu extension not available');
-        }
-
         // Valid names
         $validNames = ['test', 'Test-123', 'a_b', 'device_1', 'ALIAS'];
-        
+
         foreach ($validNames as $name) {
-            $this->assertTrue(preg_match(KB_NAME_RE, $name), "Name '$name' should be valid");
+            $this->assertSame(1, preg_match(KB_NAME_RE, $name), "Name '$name' should be valid");
         }
     }
 
@@ -111,7 +86,7 @@ class AliasResolverTest extends TestCase
     {
         // Invalid names
         $invalidNames = ['', 'with space', 'with@symbol', 'with/slash', str_repeat('a', 33)];
-        
+
         foreach ($invalidNames as $name) {
             $this->assertSame(0, preg_match(KB_NAME_RE, $name), "Name '$name' should be invalid");
         }
@@ -119,19 +94,17 @@ class AliasResolverTest extends TestCase
 
     public function testAliasDefinitionWithAllFields(): void
     {
-        if (!function_exists('apcu_store')) {
-            $this->markTestSkipped('APCu extension not available');
-        }
-
+        $store = new InMemoryKvStore();
         $definition = json_encode([
             'kb' => 'device-1',
             'keys' => 'A,B,C,D',
             'limit' => '10'
         ]);
-        apcu_store('alias:full', $definition);
-        
-        $result = AliasResolver::resolve('full');
-        
+        $store->set('alias:full', $definition);
+
+        $resolver = new AliasResolver($store);
+        $result = $resolver->resolve('full');
+
         $this->assertEquals('device-1', $result['kb']);
         $this->assertEquals('A,B,C,D', $result['keys']);
         $this->assertEquals('10', $result['limit']);
