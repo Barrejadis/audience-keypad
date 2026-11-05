@@ -5,9 +5,18 @@ document.addEventListener('DOMContentLoaded', function() {
     var buttons = Array.prototype.slice.call(document.querySelectorAll('.kb-cell button'));
     var historyDiv = document.getElementById('history');
     var eraseBtn = document.getElementById('erase');
-    var remainingSpan = document.getElementById('remaining-count');
     var statusDiv = document.getElementById('kb-status');
     var inFlight = false;
+
+    // The remaining allowance is not displayed; it arrives as a data
+    // attribute and is updated from (b) responses to disable the keys
+    // when the limit is reached.
+    var remaining = null;
+    var remainingAttr = body.getAttribute('data-remaining');
+    if (remainingAttr !== null) {
+        var parsed = parseInt(remainingAttr, 10);
+        remaining = isNaN(parsed) ? null : parsed;
+    }
 
     function setStatus(message) {
         if (statusDiv) {
@@ -15,18 +24,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function remaining() {
-        if (!remainingSpan) return null;
-        var value = parseInt(remainingSpan.textContent, 10);
-        return isNaN(value) ? null : value;
-    }
-
     // Active keys are disabled while a POST is in flight and, in limited
     // mode, when the remaining allowance is 0 (erase stays usable then).
     function refreshKeys() {
-        var left = remaining();
         buttons.forEach(function(btn) {
-            btn.disabled = inFlight || (isLimited && left !== null && left <= 0);
+            btn.disabled = inFlight || (isLimited && remaining !== null && remaining <= 0);
         });
     }
 
@@ -34,7 +36,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // the displayed history is empty (nothing to erase).
     function refreshErase() {
         if (!eraseBtn) return;
-        var empty = !historyDiv || historyDiv.children.length === 0;
+        var empty = !historyDiv || historyDiv.querySelectorAll('.history-item').length === 0;
         eraseBtn.disabled = inFlight || empty;
     }
 
@@ -43,17 +45,25 @@ document.addEventListener('DOMContentLoaded', function() {
         refreshErase();
     }
 
+    // A new keystroke cell is inserted in the history row, immediately
+    // before the erase control.
     function addToHistory(label) {
         if (!historyDiv || !isLimited) return;
         var span = document.createElement('span');
         span.className = 'history-item';
         span.textContent = label;
-        historyDiv.appendChild(span);
+        if (eraseBtn && eraseBtn.parentNode === historyDiv) {
+            historyDiv.insertBefore(span, eraseBtn);
+        } else {
+            historyDiv.appendChild(span);
+        }
     }
 
     function removeFromHistory() {
-        if (historyDiv && historyDiv.lastChild) {
-            historyDiv.removeChild(historyDiv.lastChild);
+        if (!historyDiv) return;
+        var items = historyDiv.querySelectorAll('.history-item');
+        if (items.length > 0) {
+            historyDiv.removeChild(items[items.length - 1]);
         }
     }
 
@@ -67,8 +77,8 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 addToHistory(label);
             }
-            if (remainingSpan && data.remaining !== undefined) {
-                remainingSpan.textContent = data.remaining;
+            if (isLimited && data.remaining !== undefined) {
+                remaining = data.remaining;
             }
             setStatus('');
         } else {
