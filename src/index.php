@@ -16,6 +16,7 @@ require_once __DIR__ . '/ApcuKvStore.php';
 require_once __DIR__ . '/KeyboardDefinition.php';
 require_once __DIR__ . '/LabelRegistry.php';
 require_once __DIR__ . '/DeviceManager.php';
+require_once __DIR__ . '/KeystrokeManager.php';
 require_once __DIR__ . '/KeyboardRenderer.php';
 require_once __DIR__ . '/AliasResolver.php';
 
@@ -130,24 +131,11 @@ $history = [];
 $remaining = 0;
 
 if ($kbd->mode === 'limited') {
-    // Get user's keystroke history
-    $n = 0;
-    $counterKey = "kb:{$kb}:u:{$uid}:n";
-    if ($store->exists($counterKey)) {
-        $n = (int)$store->get($counterKey);
-    }
-    
-    $limitValue = $kbd->limit ?? MAX_STROKES;
-    $remaining = $limitValue - $n;
-    
-    // Fetch all keystrokes
-    for ($i = 0; $i < $n; $i++) {
-        $strokeKey = "kb:{$kb}:u:{$uid}:{$i}";
-        if ($store->exists($strokeKey)) {
-            $keyId = (int)$store->get($strokeKey);
-            $history[] = $keyId;
-        }
-    }
+    // Get user's keystroke history and remaining allowance
+    $keystrokes = new KeystrokeManager($kb, $store);
+    $n = $keystrokes->getCount($uid);
+    $history = $keystrokes->getHistory($uid);
+    $remaining = ($kbd->limit ?? MAX_STROKES) - $n;
 }
 
 // Render the page

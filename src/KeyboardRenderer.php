@@ -62,6 +62,7 @@ class KeyboardRenderer
 </head>
 <body data-device="' . htmlspecialchars($deviceName, ENT_QUOTES) . '" data-limited="' . ($isLimited ? '1' : '0') . '">
 ' . $this->renderGrid() . '
+<div class="kb-status" id="kb-status"></div>
 ' . $this->renderLimitedExtras($isLimited) . '
 <script src="keyboard.js"></script>
 </body>
