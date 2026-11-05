@@ -5,7 +5,7 @@ require_once __DIR__ . '/../src/Constants.php';
 require_once __DIR__ . '/../src/KeyboardDefinition.php';
 require_once __DIR__ . '/../src/KeyboardRenderer.php';
 
-use PHPUnitFrameworkTestCase;
+use PHPUnit\Framework\TestCase;
 
 class KeyboardRendererTest extends TestCase
 {
@@ -65,15 +65,15 @@ class KeyboardRendererTest extends TestCase
 
     public function testRenderInactiveCell(): void
     {
-        $def = KeyboardDefinition::fromParameters('test', 'A, ,B', null);
-        $renderer = new KeyboardRenderer($def, ['A' => 0, 'B' => 1], [0, 1], [], 0);
+        $def = KeyboardDefinition::fromParameters('test', 'A, ,B,C', null);
+        $renderer = new KeyboardRenderer($def, ['A' => 0, 'B' => 1, 'C' => 2], [0, 1, 2], [], 0);
 
         $html = $renderer->render();
 
         // Should have a placeholder
         $this->assertStringContainsString('kb-placeholder', $html);
-        // Should have 3 cells
-        $this->assertStringContainsString('grid-template-columns: repeat(3, 1fr)', $html);
+        // Should have 4 cells in a 2x2 grid
+        $this->assertStringContainsString('grid-template-columns: repeat(2, 1fr)', $html);
     }
 
     public function testRender2x2Grid(): void

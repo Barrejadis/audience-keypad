@@ -113,7 +113,7 @@ class AliasResolverTest extends TestCase
         $invalidNames = ['', 'with space', 'with@symbol', 'with/slash', str_repeat('a', 33)];
         
         foreach ($invalidNames as $name) {
-            $this->assertFalse(preg_match(KB_NAME_RE, $name), "Name '$name' should be invalid");
+            $this->assertSame(0, preg_match(KB_NAME_RE, $name), "Name '$name' should be invalid");
         }
     }
 

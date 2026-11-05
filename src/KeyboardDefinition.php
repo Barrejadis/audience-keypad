@@ -108,7 +108,7 @@ class KeyboardDefinition
      */
     public function getActiveLabels(): array
     {
-        return array_filter($this->labels, fn($l) => $l !== '' && $l !== ' ');
+        return array_values(array_filter($this->labels, fn($l) => $l !== '' && $l !== ' '));
     }
 
     /**

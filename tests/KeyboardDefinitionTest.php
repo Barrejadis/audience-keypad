@@ -150,11 +150,12 @@ class KeyboardDefinitionTest extends TestCase
 
     public function testGetLabelAtInactive(): void
     {
-        $def = KeyboardDefinition::fromParameters('test', 'A, ,C', null);
+        $def = KeyboardDefinition::fromParameters('test', 'A, ,C,D', null);
         
         $this->assertEquals('A', $def->getLabelAt(0));
         $this->assertNull($def->getLabelAt(1)); // Space is inactive
         $this->assertEquals('C', $def->getLabelAt(2));
+        $this->assertEquals('D', $def->getLabelAt(3));
     }
 
     public function testConflictsWithDifferentMode(): void
