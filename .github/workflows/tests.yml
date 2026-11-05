@@ -1,0 +1,28 @@
+name: Tests
+
+on:
+  pull_request:
+    types: [opened, synchronize, closed]
+
+jobs:
+  phpunit:
+    name: PHPUnit test suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the pull request merge commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: apcu, gmp
+          coverage: none
+
+      - name: Download the pinned PHPUnit phar
+        run: wget -q -O tests/phpunit.phar https://phar.phpunit.de/phpunit-12.phar
+
+      - name: Run the test suite
+        run: php tests/phpunit.phar tests/
