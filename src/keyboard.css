@@ -63,8 +63,9 @@ body {
 
 /* Limited mode: the stroke history sits on top of the keyboard. Cells are
    sized relative to the keyboard width — at most 1/12 of the row each, with
-   no space between items — so ten keystroke cells plus the erase control
-   (2/12) fill the row exactly, without wrapping, on any viewport. */
+   no space between items — and the erase control is pinned at the right
+   edge of the row, so the cells share the width to its left and the row
+   never wraps, on any viewport. */
 .history {
     display: flex;
     flex-wrap: nowrap;
@@ -87,12 +88,16 @@ body {
     background: #e8f4f8;
 }
 
-/* The erase control follows the last displayed keystroke in the row. */
+/* The erase control is the last item of the history row and is pinned to
+   its right edge — the same right edge as the key rows below — via
+   margin-left: auto. It never grows, never shrinks, and never moves:
+   adding or erasing a keystroke resizes the cells to its left, not the
+   button. The 36px minimum width keeps it a comfortable touch target. */
 .erase-btn {
-    flex: 1 1 0;
-    max-width: calc(100% / 6);
-    min-width: 0;
+    flex: 0 0 auto;
+    min-width: 36px;
     margin: 0;
+    margin-left: auto;
     padding: 0;
     font-size: 18px;
     line-height: 1;
