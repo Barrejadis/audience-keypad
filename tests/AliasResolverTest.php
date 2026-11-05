@@ -78,7 +78,7 @@ class AliasResolverTest extends TestCase
         $validNames = ['test', 'Test-123', 'a_b', 'device_1', 'ALIAS'];
 
         foreach ($validNames as $name) {
-            $this->assertTrue(preg_match(KB_NAME_RE, $name), "Name '$name' should be valid");
+            $this->assertSame(1, preg_match(KB_NAME_RE, $name), "Name '$name' should be valid");
         }
     }
 
