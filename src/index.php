@@ -11,11 +11,15 @@ if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
 session_start();
 
 require_once __DIR__ . '/Constants.php';
+require_once __DIR__ . '/KvStore.php';
+require_once __DIR__ . '/ApcuKvStore.php';
 require_once __DIR__ . '/KeyboardDefinition.php';
 require_once __DIR__ . '/LabelRegistry.php';
 require_once __DIR__ . '/DeviceManager.php';
 require_once __DIR__ . '/KeyboardRenderer.php';
 require_once __DIR__ . '/AliasResolver.php';
+
+$store = new ApcuKvStore();
 
 // Parse request parameters
 $kb = $_GET['kb'] ?? null;
@@ -43,7 +47,8 @@ if ($alias !== null) {
     }
 
     // Resolve alias
-    $definition = AliasResolver::resolve($alias);
+    $resolver = new AliasResolver($store);
+    $definition = $resolver->resolve($alias);
     
     if ($definition === null) {
         // Unknown alias -> 404
@@ -83,7 +88,7 @@ try {
 }
 
 // Check device manager
-$deviceManager = new DeviceManager($kb);
+$deviceManager = new DeviceManager($kb, $store);
 
 // Check for mode conflict
 if ($deviceManager->exists()) {
@@ -102,7 +107,7 @@ if ($deviceManager->exists()) {
 }
 
 // Register labels and build label->id mapping
-$registry = new LabelRegistry($kb);
+$registry = new LabelRegistry($kb, $store);
 $labelToId = [];
 $userKeyIds = [];
 
@@ -128,8 +133,8 @@ if ($kbd->mode === 'limited') {
     // Get user's keystroke history
     $n = 0;
     $counterKey = "kb:{$kb}:u:{$uid}:n";
-    if (apcu_exists($counterKey)) {
-        $n = (int)apcu_fetch($counterKey);
+    if ($store->exists($counterKey)) {
+        $n = (int)$store->get($counterKey);
     }
     
     $limitValue = $kbd->limit ?? MAX_STROKES;
@@ -138,8 +143,8 @@ if ($kbd->mode === 'limited') {
     // Fetch all keystrokes
     for ($i = 0; $i < $n; $i++) {
         $strokeKey = "kb:{$kb}:u:{$uid}:{$i}";
-        if (apcu_exists($strokeKey)) {
-            $keyId = (int)apcu_fetch($strokeKey);
+        if ($store->exists($strokeKey)) {
+            $keyId = (int)$store->get($strokeKey);
             $history[] = $keyId;
         }
     }
