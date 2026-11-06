@@ -34,6 +34,12 @@ interface KvStore
     public function increment(string $key): int;
 
     /**
+     * Get the value at a key, generating and storing it atomically if the key
+     * does not exist. Concurrent callers all observe the same value.
+     */
+    public function getOrCompute(string $key, callable $generator): mixed;
+
+    /**
      * Delete a key.
      */
     public function delete(string $key): void;
