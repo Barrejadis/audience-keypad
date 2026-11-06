@@ -162,7 +162,9 @@ class KeyboardRenderer
     {
         foreach ($this->labelToId as $label => $id) {
             if ($id === $keyId) {
-                return $label;
+                // PHP coerces canonical numeric string keys (e.g. "1") to
+                // int array keys; cast back so the ?string return type holds.
+                return (string)$label;
             }
         }
         return null;
