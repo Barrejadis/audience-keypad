@@ -54,19 +54,19 @@ Each entry is the squarest factorization of its capacity ("as square as possible
 
 - The keyboard MUST be a CSS grid with `cols` columns; cells MUST be square; the overall container SHOULD be as close to square as its shape allows.
 - Active cells MUST be buttons displaying their label; a button MUST be disabled while its POST is in flight and MUST surface failures visibly.
-- Inactive cells MUST render as blank, disabled placeholders.
+- Inactive cells MUST render as blank, non-interactive placeholders: a static element, not a button. There is nothing to activate, so no `disabled` attribute is required — the cell simply is not interactive.
 - Labels MUST be HTML-escaped when rendered: they arrive via URL (or, on rehydration, from the registry) and are the only reflected content on the page (see *Security*).
 
 **Main mode — rendering:**
 
-- The page MUST render the keyboard alone: no title, no heading, no counters. In particular it MUST NOT display the remaining keystroke allowance; the value remains available in (b) responses for callers that want it.
+- The page MUST render the keyboard alone: no visible page furniture — no title or heading in the page body, no counters. A `<title>` element naming the page for the browser tab is document metadata, not page content; it does not violate this rule. In particular it MUST NOT display the remaining keystroke allowance; the value remains available in (b) responses for callers that want it.
 
 **Limited mode — rendering (in addition to the grid rules):**
 
-- The page MUST permanently display the user's whole keystroke history on the device as a sequence, oldest first, each stroke shown as the pressed key's label (HTML-escaped). This display is the device's feedback; in limited mode there is no other.
+- The page MUST permanently display the user's whole keystroke history on the device as a sequence, oldest first, each stroke shown as the pressed key's label (HTML-escaped). The history renders as a single row **above the keyboard grid**, so the feedback sits directly on top of the keys it describes. This display is the device's feedback; in limited mode there is no other.
 - The display is **not page-local**: on every load of (a) — including page reloads — the page shows the user's full recorded history on the device, exactly as before the reload; a refresh neither clears nor restarts the feedback, and the remaining allowance is recomputed server-side from the persistent counter. Only TTL expiry of the user's data or an admin reset clears the display.
 - A keystroke MUST NOT be displayed before (b) has returned `200` for it (no optimistic rendering); a rejected or failed press MUST NOT appear.
-- The page MUST render one **erase control** below the grid: a server-synthesized button outside the grid, not a keyboard cell, with no entry in the label registry. It MUST be disabled while its POST is in flight and whenever the displayed history is empty (nothing to erase). An erase is reflected on screen only after a `200` from (b) (the last displayed keystroke is removed); a failed erase MUST NOT change the display.
+- The page MUST render one **erase control** in the history row, immediately after the last displayed keystroke at the row's trailing edge: the control belongs with the history it erases, not with the keys. It is a server-synthesized button outside the grid, not a keyboard cell, with no entry in the label registry. It MUST be disabled while its POST is in flight and whenever the displayed history is empty (nothing to erase). An erase is reflected on screen only after a `200` from (b) (the last displayed keystroke is removed); a failed erase MUST NOT change the display.
 - When the limit is reached (remaining `0`), the page MUST disable every active key, leaving the erase control as the only usable control — the budget can only be freed by erasing.
 - The page MAY display the remaining allowance (`L − keystrokes recorded`).
 
@@ -95,7 +95,7 @@ Consequences for keyboards (all intended):
 
 1. Resolve `uid` from the session.
 2. `key` MUST be an integer present in `kb:{dev}:u:{uid}:keys`; otherwise `400` (this also rejects wrong device names, presses from sessions that never loaded a keyboard on this device, and ids of inactive keys, which are never registered).
-3. `n = apcu_inc("kb:{dev}:u:{uid}:n")`. If `n > cap` → `429` (the stroke is not stored), where `cap` is `L` on a limited device and `MAX_STROKES` otherwise (`L ≤ MAX_STROKES` by validation, so the global cap is subsumed in limited mode).
+3. `n = apcu_inc("kb:{dev}:u:{uid}:n")`. If `n > cap` → `429` (the stroke is not stored) **and the counter is rolled back to `n−1`**, where `cap` is `L` on a limited device and `MAX_STROKES` otherwise (`L ≤ MAX_STROKES` by validation, so the global cap is subsumed in limited mode). The rollback keeps the counter equal to the number of stored strokes: a rejected press consumes no budget and leaves no phantom count at the tail of the log, so the sequence press → `429` → `undo` → press behaves exactly as the §6 scenario requires (without it, `undo` would erase a nonexistent slot and the following press would be rejected again).
 4. Store `kb:{dev}:u:{uid}:{n−1} = key`.
 5. Respond `200` with JSON `{"ok": true, "remaining": cap − n}`.
 
@@ -107,9 +107,9 @@ Consequences for keyboards (all intended):
 4. Delete `kb:{dev}:u:{uid}:{n−1}` and decrement the counter to `n−1` (refresh per-user TTLs).
 5. Respond `200` with JSON `{"ok": true, "remaining": L − (n−1)}` (evaluated after the decrement).
 
-**Ordering:** the per-user index order equals press order, because the index comes from an atomic counter. `undo` removes the tail of the log and decrements the same counter, so the log stays strictly index-ordered and probe folds over `0..n−1` remain consistent (*The probe*, §1). There is no defined ordering *across* users, and none is needed (see *Overview*, "System overview").
+**Ordering:** the per-user index order equals press order, because the index comes from an atomic counter. `undo` removes the tail of the log and decrements the same counter, and a rejected press is rolled back (step 3), so the log stays strictly index-ordered and probe folds over `0..n−1` remain consistent (*The probe*, §1). There is no defined ordering *across* users, and none is needed (see *Overview*, "System overview").
 
-**Cap scope:** the keystroke cap applies **per user and per device name** — `L` on a limited device, `MAX_STROKES` otherwise. The counter is `kb:{dev}:u:{uid}:n` — part of the device namespace (see *Storage (APCu)*) — so a user who exhausts their allowance on one device has a full, independent allowance on every other device. An undo restores budget, since the counter is decremented — correcting a mistake does not consume allowance.
+**Cap scope:** the keystroke cap applies **per user and per device name** — `L` on a limited device, `MAX_STROKES` otherwise. The counter is `kb:{dev}:u:{uid}:n` — part of the device namespace (see *Storage (APCu)*) — so a user who exhausts their allowance on one device has a full, independent allowance on every other device. An undo restores budget, since the counter is decremented — correcting a mistake does not consume allowance, and neither does a rejected press (rolled back).
 
 **Typical shapes.** A main device hosts a large, continuous keystroke flow with no on-device feedback (e.g. a game whose feedback lives on another display). A limited device hosts a small budget — `L` typically a handful — because the user's whole history on the device is permanently displayed (e.g. entering a choice in answer to a question).
 
@@ -131,11 +131,11 @@ const KB_NAME_RE    = '/^[A-Za-z0-9_-]{1,32}$/'; // device name pattern
 | Status | Condition |
 |---|---|
 | `400` | Malformed or missing device name; malformed keyboard definition (bad key count, duplicate active labels); malformed `limit`; (a) conflicting with the device's recorded mode; invalid or unregistered `key` id in (b); `key` and `undo` both or neither present in (b); `undo` on a main-mode device or with an empty history |
-| `429` | Per-user keystroke cap reached: `L` (limited device) or `MAX_STROKES` (main device) |
+| `429` | Per-user keystroke cap reached: `L` (limited device) or `MAX_STROKES` (main device); the counter is rolled back, so the press consumes no budget |
 | `409` | Rerouting (*Aliases*): keystroke or undo from a user whose alias entry is deleted or retargeted to another device |
 
 ## 6. Shared test scenario
 
 The demo keyboard used by *The probe*'s test vectors: `GET index.php?kb=demo&keys=←,→,↑,↓` (4 cells → 2×2). The device's registry assigns `←=0, →=1, ↑=2, ↓=3` (first-seen order). Reference press histories: **H1** = `[→, ↑, ↑, ←]` = ids `[1, 2, 2, 0]`; **H2** = 200 × `↑`.
 
-**Limited-mode scenario:** a separate device `GET index.php?kb=quiz&keys=←,→,↑,↓&limit=3` — a device name is used in exactly one mode, so this cannot be `demo`; the fresh registry assigns the same ids by first-seen order (`←=0, →=1, ↑=2, ↓=3`). Presses `→, ↑, ↑` succeed (remaining 0 — keyboard disabled except erase); a fourth press `←` → `429`; `undo` erases the second `↑` (remaining 1); press `←` succeeds. Reference vector **H3** = `[→, ↑, ←]` = ids `[1, 2, 0]` (probe `count` → `3`, `checksum` → `3`).
+**Limited-mode scenario:** a separate device `GET index.php?kb=quiz&keys=←,→,↑,↓&limit=3` — a device name is used in exactly one mode, so this cannot be `demo`; the fresh registry assigns the same ids by first-seen order (`←=0, →=1, ↑=2, ↓=3`). Presses `→, ↑, ↑` succeed (remaining 0 — keyboard disabled except erase); a fourth press `←` → `429` (counter rolled back to 3, nothing stored); `undo` erases the second `↑` (remaining 1); press `←` succeeds. Reference vector **H3** = `[→, ↑, ←]` = ids `[1, 2, 0]` (probe `count` → `3`, `checksum` → `3`).

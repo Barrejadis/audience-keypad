@@ -106,7 +106,7 @@ Notes: the histogram packs a 9-bit counter per key id (9 bits hold any count up 
 
 **Reset action:** an admin can wipe a device by POSTing `{"kb": "NAME", "password": "secret", "action": "reset"}`. The server deletes every APCu key under the `kb:{NAME}:` prefix — label registry, counter, logs, user data — and returns `200 {"ok": true}`. This lets the admin reuse a device name for a completely fresh run without waiting for TTL expiry; a fresh device name achieves the same with zero cost. After a reset, labels re-register from id 0, which is consistent because their old logs are gone too.
 
-**Alias management actions** also travel on this channel: `alias` (create or rebind a public name to a device definition) and `alias-del` (remove a binding), specified in *Aliases*, §4. They share this channel's password authentication and the `400`/`401` error conventions; probes themselves always address concrete device names and never resolve aliases.
+**Alias management actions** — `alias` (create or rebind a public name to a device definition) and `alias-del` (remove a binding), specified in *Aliases*, §4 — do **not** travel on this channel: they are served by the dedicated endpoint (d), `alias.php` (JSON POST body), and `probe.php` stays probe-only (see *Aliases*, §1). They share this channel's *conventions* — the password travels in the POST body and is compared with `hash_equals` against `ADMIN_HASH`, mismatch → `401`, and structural failures → `400` — but the channels are distinct, and (c) accepts no alias action other than the `reset` above. Probes themselves always address concrete device names and never resolve aliases.
 
 ## 7. Applied limits
 
