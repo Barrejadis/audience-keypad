@@ -32,6 +32,12 @@ if (!is_string($kb) || $kb === '') {
     respond(400, ['ok' => false, 'error' => 'Missing device name (kb parameter)']);
 }
 
+// A keystroke belongs to the keyboard that displayed it: endpoint (b) never
+// accepts or resolves an alias parameter (spec 05-alias §5).
+if (isset($_POST['alias'])) {
+    respond(400, ['ok' => false, 'error' => 'The alias parameter is not accepted here']);
+}
+
 try {
     $manager = new KeystrokeManager($kb, new ApcuKvStore());
 } catch (InvalidArgumentException $e) {

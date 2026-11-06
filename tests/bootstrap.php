@@ -18,9 +18,10 @@ if (!defined('TEST_BOOTSTRAP')) {
     foreach ($files as $file) {
         // Skip endpoint files (they have HTTP dependencies)
         $basename = basename($file);
-        if (strpos($basename, 'index.php') === 0 || 
+        if (strpos($basename, 'index.php') === 0 ||
             strpos($basename, 'keystroke.php') === 0 ||
-            strpos($basename, 'probe.php') === 0) {
+            strpos($basename, 'probe.php') === 0 ||
+            strpos($basename, 'alias.php') === 0) {
             continue;
         }
         require_once $file;

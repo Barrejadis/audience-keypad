@@ -143,4 +143,14 @@ class DeviceManager
         }
         return $this->store->get($key);
     }
+
+    /**
+     * Clear the alias entry marker (direct entry: last entry wins).
+     *
+     * @param string $uid User session id
+     */
+    public function clearAliasEntry(string $uid): void
+    {
+        $this->store->delete("kb:{$this->deviceName}:u:{$uid}:via");
+    }
 }
