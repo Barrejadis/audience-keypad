@@ -44,7 +44,9 @@ class ApcuKvStore implements KvStore
         foreach ($info['cache_list'] as $entry) {
             $entryKey = $entry['info'];
             if (str_starts_with($entryKey, $prefix)) {
-                $result[$entryKey] = $entry['value'];
+                // Some APCu builds omit 'value' from apcu_cache_info() entries;
+                // fall back to a direct fetch so callers still get the stored value.
+                $result[$entryKey] = $entry['value'] ?? apcu_fetch($entryKey);
             }
         }
         return $result;
