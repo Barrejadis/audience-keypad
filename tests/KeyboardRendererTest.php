@@ -340,4 +340,33 @@ class KeyboardRendererTest extends TestCase
             $html
         );
     }
+
+    public function testRenderLimitedModeWithNumericLabelsAndHistory(): void
+    {
+        // Regression test: numeric labels ("1".."9") are coerced to int
+        // array keys when the label->id map is built, exactly as index.php
+        // does. Rendering the history row (second visit, non-empty
+        // history) must not crash and must show the digit labels.
+        $def = KeyboardDefinition::fromParameters('demo', '1,2,3,4,5,6,7,8,9', '5');
+
+        $labelToId = [];
+        $userKeyIds = [];
+        foreach ($def->getActiveLabels() as $i => $label) {
+            $labelToId[$label] = $i;
+            $userKeyIds[] = $i;
+        }
+
+        // History references ids 4, 0, 8 -> labels "5", "1", "9"
+        $renderer = new KeyboardRenderer($def, $labelToId, $userKeyIds, [4, 0, 8], 2);
+
+        $html = $renderer->render();
+
+        $this->assertStringContainsString('class="history"', $html);
+        $this->assertStringContainsString('<span class="history-item">5</span>', $html);
+        $this->assertStringContainsString('<span class="history-item">1</span>', $html);
+        $this->assertStringContainsString('<span class="history-item">9</span>', $html);
+        // The grid still renders the digit keys
+        $this->assertStringContainsString('data-label="1"', $html);
+        $this->assertStringContainsString('grid-template-columns: repeat(3, 1fr)', $html);
+    }
 }
