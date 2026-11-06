@@ -23,8 +23,9 @@ The same page is served through an **alias** entry — `GET index.php?alias=NAME
 2. Active labels MUST be unique within the keyboard.
 3. The device name MUST match `[A-Za-z0-9_-]{1,32}`.
 4. `limit`, when present, MUST be an integer with `0 < L ≤ MAX_STROKES`.
+5. When the device already has a recorded definition, the request MUST match it exactly — mode, `L`, and ordered label list (see **Device definition** below).
 
-**Device mode.** The mode is a property of the **device**, not of the page load or the user: a device name is used in exactly one mode. The first (a) served on a device records it — `kb:{dev}:mode` = `main` or `limited`, plus `kb:{dev}:limit = L` in limited mode (no TTL, like the label registry; schema in *Storage (APCu)*). Any later (a) on that device that conflicts with the recorded mode — `limit` present on a `main` device, absent on a `limited` device, or a different `L` — → `400` with an explanatory body; a different run uses a fresh device name.
+**Device definition.** The whole definition — mode, `L` when present, and the ordered label list — is a property of the **device**, not of the page load or the user: a device name is used with exactly one keyboard definition. The first (a) served on a device claims that definition **atomically** — the request that claims it defines the device — and records `kb:{dev}:mode` = `main` or `limited`, `kb:{dev}:limit = L` in limited mode, and `kb:{dev}:keys` = the JSON ordered label list (no TTL, like the label registry; schema in *Storage (APCu)*). Any later (a) on that device that conflicts with the recorded definition — `limit` present on a `main` device, absent on a `limited` device, a different `L`, or a different ordered label list (reordering, resizing, adding, removing, or moving inactive cells) — → `400` with an explanatory body; a different run, including a reordered or resized layout, uses a fresh device name.
 
 **Geometry** is fixed by the segment count — no padding, no choice:
 
@@ -72,17 +73,17 @@ Each entry is the squarest factorization of its capacity ("as square as possible
 
 ## 2. Key id attribution — the label registry (write side)
 
-Key ids are **content-addressed, not layout-derived**, so probes survive reordering, resizing, and re-padding of keyboards (invariant: *Overview*, "Label-based key identity").
+Key ids are **content-addressed, not layout-derived**: a label receives its id at registration, never by grid position (invariant: *Overview*, "Label-based key identity"). Under the definition lock (§1) a device serves exactly one keyboard, so the labels' first-seen order is simply the definition's own order.
 
 Rules:
 
-- The registry is **per device**: `kb:{dev}:lab:{label} → id`, with a counter `kb:{dev}:lab:next`. Each label gets the next free id (starting at 0) the first time any keyboard *of that device* displays it.
+- The registry is **per device**: `kb:{dev}:lab:{label} → id`, with a counter `kb:{dev}:lab:next`. Each label gets the next free id (starting at 0) the first time the device's keyboard displays it.
 - Registry entries have **no TTL**. This is safe because the keystroke logs are APCu too: a restart or expiry clears logs and registry *together*, so ids are never reassigned under existing logs.
 
-Consequences for keyboards (all intended):
+Consequences (all intended):
 
-- Reordering keys, changing grid size, or moving inactive cells around has no effect on ids.
-- Two keyboards of the same device sharing a label share its id; a device's probe vocabulary is the set of labels ever served *on that device*, not any one keyboard's layout. Devices have fully independent id spaces.
+- The definition lock makes the registry exactly the label set of the device's single keyboard: every id ever registered on the device — and therefore every logged keystroke — belongs to that keyboard, so the limited-mode history display, the erase control, and probes all resolve every recorded stroke; no stroke can fall outside the served keyboard.
+- A device's probe vocabulary is exactly the label set of its single keyboard. Devices have fully independent id spaces.
 - Renaming a label referenced by a probe fails loudly at query-parse time (`422 unknown label`), never silently — specified in *The probe*.
 
 ## 3. Keystroke capture — endpoint (b)
@@ -130,7 +131,7 @@ const KB_NAME_RE    = '/^[A-Za-z0-9_-]{1,32}$/'; // device name pattern
 
 | Status | Condition |
 |---|---|
-| `400` | Malformed or missing device name; malformed keyboard definition (bad key count, duplicate active labels); malformed `limit`; (a) conflicting with the device's recorded mode; invalid or unregistered `key` id in (b); `key` and `undo` both or neither present in (b); `undo` on a main-mode device or with an empty history |
+| `400` | Malformed or missing device name; malformed keyboard definition (bad key count, duplicate active labels); malformed `limit`; (a) conflicting with the device's recorded definition (mode, `L`, or ordered label list); invalid or unregistered `key` id in (b); `key` and `undo` both or neither present in (b); `undo` on a main-mode device or with an empty history |
 | `429` | Per-user keystroke cap reached: `L` (limited device) or `MAX_STROKES` (main device); the counter is rolled back, so the press consumes no budget |
 | `409` | Rerouting (*Aliases*): keystroke or undo from a user whose alias entry is deleted or retargeted to another device |
 
@@ -138,4 +139,5 @@ const KB_NAME_RE    = '/^[A-Za-z0-9_-]{1,32}$/'; // device name pattern
 
 The demo keyboard used by *The probe*'s test vectors: `GET index.php?kb=demo&keys=←,→,↑,↓` (4 cells → 2×2). The device's registry assigns `←=0, →=1, ↑=2, ↓=3` (first-seen order). Reference press histories: **H1** = `[→, ↑, ↑, ←]` = ids `[1, 2, 2, 0]`; **H2** = 200 × `↑`.
 
-**Limited-mode scenario:** a separate device `GET index.php?kb=quiz&keys=←,→,↑,↓&limit=3` — a device name is used in exactly one mode, so this cannot be `demo`; the fresh registry assigns the same ids by first-seen order (`←=0, →=1, ↑=2, ↓=3`). Presses `→, ↑, ↑` succeed (remaining 0 — keyboard disabled except erase); a fourth press `←` → `429` (counter rolled back to 3, nothing stored); `undo` erases the second `↑` (remaining 1); press `←` succeeds. Reference vector **H3** = `[→, ↑, ←]` = ids `[1, 2, 0]` (probe `count` → `3`, `checksum` → `3`).
+**Limited-mode scenario:** a separate device `GET index.php?kb=quiz&keys=←,→,↑,↓&limit=3` — a device name is used with exactly one keyboard definition, so this cannot be `demo`; the fresh registry assigns the same ids by first-seen order (`←=0, →=1, ↑=2, ↓=3`). Presses `→, ↑, ↑` succeed (remaining 0 — keyboard disabled except erase); a fourth press `←` → `429` (counter rolled back to 3, nothing stored); `undo` erases the second `↑` (remaining 1); press `←` succeeds. Reference vector **H3** = `[→, ↑, ←]` = ids `[1, 2, 0]` (probe `count` → `3`, `checksum` → `3`).
+

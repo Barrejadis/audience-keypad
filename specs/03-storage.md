@@ -18,13 +18,14 @@ All keys are namespaced by device name (`{dev}` = the `kb` request parameter):
 | `kb:{dev}:u:{uid}:{i}` | key id of keystroke `i` | `KB_TTL` |
 | `kb:{dev}:mode` | device mode: `main` or `limited` | none |
 | `kb:{dev}:limit` | stroke budget `L` (limited devices only) | none |
+| `kb:{dev}:keys` | JSON ordered label list — the device's keyboard definition (*The keyboard* §1) | none |
 | `kb:{dev}:u:{uid}:via` | alias name the user entered this device through (alias entry only) | `KB_TTL` |
 | `alias:{name}` | JSON device definition bound to the alias | none |
 
 ## 2. TTL behavior
 
 - All per-user TTLs are refreshed on (a) and (b); abandoned sessions therefore expire on their own. The alias entry marker `via` is one of these per-user entries.
-- Device-mode entries (`mode`, `limit`) carry **no TTL**, like the registry: they describe the device, not any user, and are wiped with everything else by a reset or an APCu restart. Alias definitions (`alias:{name}`) carry **no TTL** likewise: they are admin-owned bindings, wiped only by an APCu restart or explicit deletion (*Aliases*, §4).
+- Device entries (`mode`, `limit`, `keys`) carry **no TTL**, like the registry: they describe the device — its claimed definition — not any user, and are wiped with everything else by a reset or an APCu restart. Alias definitions (`alias:{name}`) carry **no TTL** likewise: they are admin-owned bindings, wiped only by an APCu restart or explicit deletion (*Aliases*, §4).
 - Registry entries carry **no TTL**: a restart or expiry clears logs and registry together, so ids are never reassigned under existing logs (invariant: *Overview*, "Label-based key identity").
 
 ## 3. User enumeration
@@ -33,7 +34,7 @@ User enumeration for (c) uses `apcu_cache_info()` filtered on the `:keys` suffix
 
 ## 4. Memory bounds
 
-Memory is bounded: at most `MAX_STROKES` per-index entries per live user per device (`L` on a limited device, `L ≤ MAX_STROKES`), plus one entry per distinct label ever served on each device. An undo only decrements the counter and deletes one entry, so the bound is unaffected. Aliasing adds one definition entry per alias and one small entry marker per live user per device — the bound is unaffected (*Aliases*).
+Memory is bounded: at most `MAX_STROKES` per-index entries per live user per device (`L` on a limited device, `L ≤ MAX_STROKES`), plus one entry per label of each device's single keyboard definition (bounded by the device's key count) and one definition entry per device (`mode`, `limit` when present, `keys`). An undo only decrements the counter and deletes one entry, so the bound is unaffected. Aliasing adds one definition entry per alias and one small entry marker per live user per device — the bound is unaffected (*Aliases*).
 
 ## 5. Device isolation and reset
 
@@ -44,3 +45,4 @@ Memory is bounded: at most `MAX_STROKES` per-index entries per live user per dev
 ## 6. Requirements
 
 PHP ≥ 8.1 with the `apcu` and `gmp` extensions; standard PHP sessions (hardening requirements: *Security*).
+

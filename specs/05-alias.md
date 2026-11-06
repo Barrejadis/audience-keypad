@@ -26,7 +26,7 @@ Properties:
 | `keys` | keyboard definition | exactly as in *The keyboard* §1: segment count in `KEYBOARD_SIZES`, unique active labels, comma rules |
 | `limit` | stroke budget (optional) | integer `0 < L ≤ MAX_STROKES`; presence selects limited mode |
 
-Validation is **structural**: it checks the definition alone, at write time. The target device need not exist yet — it is created by the first (a) that resolves the alias, which applies the mode-recording and conflict rules of *The keyboard* §1 unchanged.
+Validation is **structural**: it checks the definition alone, at write time. The target device need not exist yet — it is created by the first (a) that resolves the alias, which applies the definition-recording and conflict rules of *The keyboard* §1 unchanged. A binding whose definition conflicts with the target device's recorded definition therefore passes (d) but fails at (a) with `400`; the intended transition between activities is repointing the alias to a **fresh device name**.
 
 Alias names and device names are **independent namespaces**: they are never compared, because the entry parameters are distinct (`alias` vs `kb`); an alias MAY share its name with a device.
 
@@ -42,7 +42,7 @@ The `alias` parameter MUST be the only definition parameter: combined with `kb`,
 
 1. `NAME` MUST match `KB_NAME_RE`; otherwise `400`.
 2. Resolve `alias:{NAME}`. Absent → **`404`** with a human-readable explanatory page (unknown alias). This is the system's only `404`: it distinguishes "well-formed name, no such binding" from the `400` family of malformed requests.
-3. Substitute the stored definition as the request parameters and process endpoint (a) exactly as specified in *The keyboard* §1: validation, mode recording, label registry, user key set, rendering. The device's mode-conflict rules apply unchanged.
+3. Substitute the stored definition as the request parameters and process endpoint (a) exactly as specified in *The keyboard* §1: validation, definition recording, label registry, user key set, rendering. The device's definition-recording and conflict rules apply unchanged.
 4. Record the **entry marker** `kb:{dev}:u:{uid}:via = NAME` (TTL `KB_TTL`, refreshed like the other per-user data). The marker is the only alias-related state inside a device namespace, and it is per device: it records how the user's current key set on *this* device was established.
 
 The served page's URL is the alias URL; it embeds the resolved device name for its (b) posts.
@@ -69,7 +69,7 @@ The keystroke POST carries the concrete device name `kb`, as in *The keyboard* �
 - **Unchanged** — the alias exists and its target `kb` equals the request's device → normal processing.
 - **Modified** — the alias is absent (deleted) or its target `kb` differs from the request's device → **nothing is recorded or erased** (no counter increment, no log entry, no budget consumed; the keystroke is dropped, not replayed) and the server responds **`409`** with `{"ok": false, "reroute": true}`.
 
-The modification criterion is **the target device name only**. A definition rewrite that keeps the same target device does not reroute anyone: users keep the keyboard they were served, and presses of keys in their served key set keep recording on that device; the new definition applies to (a) loads from that point on. Likewise, an alias repointed away and back to the same device before the user's next keystroke records normally — the check compares the current target with the request device, not an event history.
+The modification criterion is **the target device name only**. A definition rewrite that keeps the same target device does not reroute anyone: users keep the keyboard they were served, and presses of keys in their served key set keep recording on that device. If the rewrite changes the definition, subsequent (a) loads on that device fail `400` — the device's recorded definition is immutable (*The keyboard* §1) — until the alias is repointed to a fresh device name, which is the intended transition; a rewrite that keeps the same target device *and* definition changes nothing observable. Likewise, an alias repointed away and back to the same device before the user's next keystroke records normally — the check compares the current target with the request device, not an event history.
 
 **Client behavior.** On a `409` with `reroute`, the page MUST reload its URL — the alias URL — automatically, which re-enters (a) and serves the new target's keyboard. From the user's point of view the new device simply replaces the old one: the page MUST NOT display any transition notice, intermediate message, or other auxiliary content. The device is operated under a facilitator's direction, never autonomously — every display beyond the requested keyboard is noise (the same minimalism as main mode, *The keyboard* §1). The dropped keystroke is not carried over: the user presses again on the new keyboard, at the facilitator's pace.
 
@@ -91,7 +91,7 @@ No other constant: an alias definition reuses the validation of (a) (*The keyboa
 
 | Status | Condition |
 |---|---|
-| `400` | (a): `alias` combined with any of `kb`/`keys`/`limit`; malformed alias name. (d): alias action with a structurally invalid definition |
+| `400` | (a): `alias` combined with any of `kb`/`keys`/`limit`; malformed alias name; alias resolving to a definition that conflicts with the target device's recorded definition. (d): alias action with a structurally invalid definition |
 | `401` | Admin password mismatch on an alias action |
 | `404` | (a): well-formed alias name with no binding |
 | `409` | (b): user entered via an alias that is deleted or retargeted to another device |
@@ -110,3 +110,4 @@ Setup — admin upsert: `act` → `{kb: "act1", keys: "A,B,C,D"}` (4 cells → 2
 8. Probe (c) on `act1`: folds u1's `[A]` and the direct user's data; alias names never appear in (c).
 
 Deletion scenario: admin `alias-del act`; u1 (entered via `act`, now on `act2`) presses `E` → `409`; the reload lands on the `404` unknown-alias page.
+
