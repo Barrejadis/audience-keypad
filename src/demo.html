@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audience keypad — demo</title>
+<link rel="stylesheet" href="demo.css">
+<script src="demo.js" defer></script>
+</head>
+<body>
+<main class="demo">
+
+    <div class="row">
+        <section class="zone" id="zone-keyboard">
+            <h2>Keyboard definition</h2>
+            <label>name <input id="kb-name" type="text" autocomplete="off"></label>
+            <label>keys <input id="kb-keys" type="text" autocomplete="off" placeholder="A,B,C,D"></label>
+            <label>limit <input id="kb-limit" type="text" inputmode="numeric" autocomplete="off" placeholder="optional"></label>
+            <button id="open-keyboard" type="button" disabled>Open keyboard</button>
+        </section>
+
+        <section class="zone" id="zone-alias">
+            <h2>Alias</h2>
+            <label>password <input id="alias-password" type="password" autocomplete="off"></label>
+            <label>alias <input id="alias-name" type="text" autocomplete="off"></label>
+            <div class="actions">
+                <button id="define-alias" type="button" disabled>Define alias</button>
+                <button id="open-alias" type="button" disabled>Open alias</button>
+            </div>
+            <div class="status" id="alias-status"></div>
+        </section>
+    </div>
+
+    <section class="zone" id="zone-probes">
+        <h2>Probes</h2>
+        <select id="probe-list" size="2"></select>
+        <label>init <input id="probe-init" type="text" autocomplete="off"></label>
+        <label>program <textarea id="probe-program" rows="3"></textarea></label>
+        <button id="run-probe" type="button" disabled>Probe</button>
+        <textarea id="probe-result" rows="8" readonly placeholder="result"></textarea>
+    </section>
+
+</main>
+</body>
+</html>

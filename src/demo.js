@@ -1,0 +1,140 @@
+document.addEventListener('DOMContentLoaded', function() {
+    // Predefined probes: only the description is visible in the listbox; the
+    // full definition is hidden until a click populates the init/program
+    // fields, where it stays editable.
+    var PROBES = [
+        { description: 'count users', init: '1', program: 'v' },
+        { description: 'pressed keys', init: '0', program: 'if(k >= 0, v | (1 << k), v)' }
+    ];
+
+    var kbName = document.getElementById('kb-name');
+    var kbKeys = document.getElementById('kb-keys');
+    var kbLimit = document.getElementById('kb-limit');
+    var openKeyboardBtn = document.getElementById('open-keyboard');
+    var aliasPassword = document.getElementById('alias-password');
+    var aliasName = document.getElementById('alias-name');
+    var defineAliasBtn = document.getElementById('define-alias');
+    var openAliasBtn = document.getElementById('open-alias');
+    var aliasStatus = document.getElementById('alias-status');
+    var probeList = document.getElementById('probe-list');
+    var probeInit = document.getElementById('probe-init');
+    var probeProgram = document.getElementById('probe-program');
+    var runProbeBtn = document.getElementById('run-probe');
+    var probeResult = document.getElementById('probe-result');
+
+    var probeInFlight = false;
+
+    PROBES.forEach(function(probe, i) {
+        var option = document.createElement('option');
+        option.value = String(i);
+        option.textContent = probe.description;
+        probeList.appendChild(option);
+    });
+
+    probeList.addEventListener('change', function() {
+        var probe = PROBES[Number(probeList.value)];
+        if (probe) {
+            probeInit.value = probe.init;
+            probeProgram.value = probe.program;
+        }
+        refresh();
+    });
+
+    function val(el) {
+        return el.value.trim();
+    }
+
+    // Each button is enabled as soon as all mandatory fields for its action
+    // have a value; limit is optional everywhere it appears.
+    function refresh() {
+        var name = val(kbName);
+        var keys = val(kbKeys);
+        openKeyboardBtn.disabled = !(name && keys);
+        defineAliasBtn.disabled = !(val(aliasPassword) && val(aliasName) && name && keys);
+        openAliasBtn.disabled = !val(aliasName);
+        runProbeBtn.disabled = probeInFlight || !(name && val(aliasPassword) && val(probeInit) && val(probeProgram));
+    }
+
+    [kbName, kbKeys, kbLimit, aliasPassword, aliasName, probeInit, probeProgram].forEach(function(el) {
+        el.addEventListener('input', refresh);
+    });
+
+    function openUrl(url) {
+        window.open(url, '_blank');
+    }
+
+    openKeyboardBtn.addEventListener('click', function() {
+        var url = 'index.php?kb=' + encodeURIComponent(val(kbName))
+            + '&keys=' + encodeURIComponent(val(kbKeys));
+        var limit = val(kbLimit);
+        if (limit) {
+            url += '&limit=' + encodeURIComponent(limit);
+        }
+        openUrl(url);
+    });
+
+    openAliasBtn.addEventListener('click', function() {
+        openUrl('index.php?alias=' + encodeURIComponent(val(aliasName)));
+    });
+
+    // Post a JSON body and hand the raw response (status + parsed body) to
+    // the callback; the endpoints answer JSON even on error statuses.
+    function postJson(url, body, onDone) {
+        fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        }).then(function(resp) {
+            return resp.text().then(function(text) {
+                var data = text;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) { /* non-JSON body: shown raw */ }
+                onDone(resp.status, data);
+            });
+        }).catch(function(err) {
+            onDone(0, String(err));
+        });
+    }
+
+    function showJson(status, data) {
+        var body = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+        return (status ? 'HTTP ' + status + '\n' : 'Network error\n') + body;
+    }
+
+    defineAliasBtn.addEventListener('click', function() {
+        var body = {
+            password: val(aliasPassword),
+            action: 'alias',
+            alias: val(aliasName),
+            kb: val(kbName),
+            keys: val(kbKeys)
+        };
+        var limit = val(kbLimit);
+        if (limit) {
+            body.limit = limit;
+        }
+        aliasStatus.textContent = '…';
+        postJson('alias.php', body, function(status, data) {
+            aliasStatus.textContent = showJson(status, data);
+        });
+    });
+
+    runProbeBtn.addEventListener('click', function() {
+        probeInFlight = true;
+        refresh();
+        probeResult.value = '…';
+        postJson('probe.php', {
+            kb: val(kbName),
+            password: val(aliasPassword),
+            init: val(probeInit),
+            program: probeProgram.value.trim()
+        }, function(status, data) {
+            probeInFlight = false;
+            probeResult.value = showJson(status, data);
+            refresh();
+        });
+    });
+
+    refresh();
+});
