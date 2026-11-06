@@ -49,6 +49,10 @@ class KeystrokeManager
             return self::error(400, 'Exactly one of key or undo must be provided');
         }
 
+        // Every well-formed (b) request refreshes all per-user TTLs
+        // (spec 03-storage §2), so an active session never loses data.
+        $this->refreshUserTtl($uid);
+
         if ($hasKey) {
             if (!is_string($key) || !ctype_digit($key)) {
                 return self::error(400, 'Invalid key id');
@@ -146,6 +150,11 @@ class KeystrokeManager
             return null;
         }
 
+        // The marker is a per-user entry: refresh its TTL at every routing
+        // check (spec 03-storage §2), so an active session keeps its
+        // reroute protection for as long as it keeps pressing.
+        $this->devices->recordAliasEntry($uid, $via);
+
         $resolver = new AliasResolver($this->store);
         $definition = $resolver->resolve($via);
 
@@ -195,6 +204,28 @@ class KeystrokeManager
             return $this->devices->getLimit() ?? MAX_STROKES;
         }
         return MAX_STROKES;
+    }
+
+    /**
+     * Refresh all per-user TTLs on this device (spec 03-storage §2): the
+     * counter, every stored stroke and the active key set are re-stored
+     * with a fresh KB_TTL. An active session therefore never loses data,
+     * while an abandoned one expires as a whole. Called on every (a) and
+     * (b) request.
+     */
+    public function refreshUserTtl(string $uid): void
+    {
+        $n = $this->getCount($uid);
+        if ($n > 0) {
+            $this->store->set($this->counterKey($uid), $n, KB_TTL);
+            for ($i = 0; $i < $n; $i++) {
+                $key = $this->strokeKey($uid, $i);
+                if ($this->store->exists($key)) {
+                    $this->store->set($key, (int)$this->store->get($key), KB_TTL);
+                }
+            }
+        }
+        $this->refreshKeysTtl($uid);
     }
 
     /**

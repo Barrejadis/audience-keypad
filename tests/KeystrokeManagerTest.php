@@ -432,4 +432,137 @@ class KeystrokeManagerTest extends TestCase
         $this->assertSame(400, $manager->handle(self::UID, '1', '1')['status']);
         $this->assertSame(409, $manager->handle(self::UID, '1', null)['status']);
     }
+
+    /**
+     * Simulate aging: re-store every per-user entry of the user with a
+     * nearly expired TTL, as if written almost KB_TTL ago.
+     */
+    private function ageUserData(string $device, string $uid): void
+    {
+        foreach ($this->store->entriesWithPrefix("kb:$device:u:$uid:") as $key => $value) {
+            $this->store->set($key, $value, 1);
+        }
+    }
+
+    public function testRefreshUserTtlRestoresCounterStrokesAndKeys(): void
+    {
+        $manager = $this->setupDevice('demo', 'main', null, [0, 1, 2, 3]);
+        $manager->record(self::UID, 1);
+        $manager->record(self::UID, 2);
+        $manager->record(self::UID, 0);
+
+        $this->ageUserData('demo', self::UID);
+
+        $manager->refreshUserTtl(self::UID);
+
+        $prefix = 'kb:demo:u:' . self::UID . ':';
+        $this->assertSame(KB_TTL, $this->store->ttlOf($prefix . 'n'));
+        $this->assertSame(KB_TTL, $this->store->ttlOf($prefix . '0'));
+        $this->assertSame(KB_TTL, $this->store->ttlOf($prefix . '1'));
+        $this->assertSame(KB_TTL, $this->store->ttlOf($prefix . '2'));
+        $this->assertSame(KB_TTL, $this->store->ttlOf($prefix . 'keys'));
+        // The refresh re-stores values, it does not alter them
+        $this->assertSame(3, $manager->getCount(self::UID));
+        $this->assertSame([1, 2, 0], $manager->getHistory(self::UID));
+    }
+
+    public function testRefreshUserTtlWithoutUserDataCreatesNothing(): void
+    {
+        $manager = $this->setupDevice('demo', 'main', null, [0, 1, 2, 3]);
+
+        $manager->refreshUserTtl('unknown-session');
+
+        $this->assertSame([], $this->store->entriesWithPrefix('kb:demo:u:unknown-session:'));
+        $this->assertSame(0, $manager->getCount('unknown-session'));
+    }
+
+    public function testRefreshUserTtlSkipsMissingStrokes(): void
+    {
+        // A stroke entry that expired on its own is not resurrected; the
+        // others are still refreshed.
+        $manager = $this->setupDevice('demo', 'main', null, [0, 1, 2, 3]);
+        $manager->record(self::UID, 1);
+        $manager->record(self::UID, 2);
+        $manager->record(self::UID, 0);
+        $this->store->delete('kb:demo:u:' . self::UID . ':1');
+        $this->ageUserData('demo', self::UID);
+
+        $manager->refreshUserTtl(self::UID);
+
+        $prefix = 'kb:demo:u:' . self::UID . ':';
+        $this->assertSame(KB_TTL, $this->store->ttlOf($prefix . 'n'));
+        $this->assertSame(KB_TTL, $this->store->ttlOf($prefix . '0'));
+        $this->assertFalse($this->store->exists($prefix . '1'));
+        $this->assertSame(KB_TTL, $this->store->ttlOf($prefix . '2'));
+        // History still skips the missing entry
+        $this->assertSame([1, 0], $manager->getHistory(self::UID));
+    }
+
+    public function testHandleRefreshesAllPerUserTtls(): void
+    {
+        // Endpoint (b) goes through handle(): every well-formed request
+        // refreshes keys, counter and every stored stroke (spec 03 §2).
+        $manager = $this->setupDevice('demo', 'main', null, [0, 1, 2, 3]);
+        $manager->record(self::UID, 1);
+        $manager->record(self::UID, 2);
+        $this->ageUserData('demo', self::UID);
+
+        $result = $manager->handle(self::UID, '0', null);
+
+        $this->assertSame(200, $result['status']);
+        $prefix = 'kb:demo:u:' . self::UID . ':';
+        $this->assertSame(KB_TTL, $this->store->ttlOf($prefix . 'keys'));
+        $this->assertSame(KB_TTL, $this->store->ttlOf($prefix . 'n'));
+        $this->assertSame(KB_TTL, $this->store->ttlOf($prefix . '0'));
+        $this->assertSame(KB_TTL, $this->store->ttlOf($prefix . '1'));
+        // The just-written stroke carries a fresh TTL as well
+        $this->assertSame(KB_TTL, $this->store->ttlOf($prefix . '2'));
+        $this->assertSame([1, 2, 0], $manager->getHistory(self::UID));
+    }
+
+    public function testUndoViaHandleRefreshesAllPerUserTtls(): void
+    {
+        $manager = $this->setupDevice('quiz', 'limited', 3, [0, 1, 2, 3]);
+        $manager->record(self::UID, 1);
+        $manager->record(self::UID, 2);
+        $this->ageUserData('quiz', self::UID);
+
+        $result = $manager->handle(self::UID, null, '1');
+
+        $this->assertSame(200, $result['status']);
+        $prefix = 'kb:quiz:u:' . self::UID . ':';
+        $this->assertSame(KB_TTL, $this->store->ttlOf($prefix . 'keys'));
+        $this->assertSame(KB_TTL, $this->store->ttlOf($prefix . 'n'));
+        $this->assertSame(KB_TTL, $this->store->ttlOf($prefix . '0'));
+        // The erased stroke stays deleted
+        $this->assertFalse($this->store->exists($prefix . '1'));
+    }
+
+    public function testRoutingCheckRefreshesAliasMarker(): void
+    {
+        $manager = $this->setupAliasedDevice('act1', 'act', 'act1');
+        $manager->record(self::UID, 0);
+        $this->store->set('kb:act1:u:' . self::UID . ':via', 'act', 1); // aged marker
+
+        $result = $manager->record(self::UID, 1);
+
+        $this->assertSame(200, $result['status']);
+        $this->assertSame(KB_TTL, $this->store->ttlOf('kb:act1:u:' . self::UID . ':via'));
+        $this->assertSame('act', $this->store->get('kb:act1:u:' . self::UID . ':via'));
+    }
+
+    public function testRoutingCheckRefreshesAliasMarkerEvenOnReroute(): void
+    {
+        // The marker is refreshed at the routing check itself, so a 409
+        // reroute does not leave it any closer to expiry.
+        $manager = $this->setupAliasedDevice('act1', 'act', 'act1');
+        $resolver = new AliasResolver($this->store);
+        $resolver->upsert('act', 'act2', 'E,F', null);
+        $this->store->set('kb:act1:u:' . self::UID . ':via', 'act', 1); // aged marker
+
+        $result = $manager->record(self::UID, 0);
+
+        $this->assertSame(409, $result['status']);
+        $this->assertSame(KB_TTL, $this->store->ttlOf('kb:act1:u:' . self::UID . ':via'));
+    }
 }

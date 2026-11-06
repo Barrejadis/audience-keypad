@@ -136,13 +136,18 @@ if ($aliasName !== null) {
     $deviceManager->clearAliasEntry($uid);
 }
 
+// Refresh all per-user TTLs on every (a) request (spec 03-storage §2):
+// keys, the alias entry marker, the counter and every stored stroke stay
+// alive while the session is active and expire as a whole when abandoned.
+$keystrokes = new KeystrokeManager($kb, $store);
+$keystrokes->refreshUserTtl($uid);
+
 // For limited mode, get user's history
 $history = [];
 $remaining = 0;
 
 if ($kbd->mode === 'limited') {
     // Get user's keystroke history and remaining allowance
-    $keystrokes = new KeystrokeManager($kb, $store);
     $n = $keystrokes->getCount($uid);
     $history = $keystrokes->getHistory($uid);
     $remaining = ($kbd->limit ?? MAX_STROKES) - $n;
