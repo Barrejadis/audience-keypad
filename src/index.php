@@ -98,20 +98,16 @@ try {
 // Check device manager
 $deviceManager = new DeviceManager($kb, $store);
 
-// Check for mode conflict
-if ($deviceManager->exists()) {
+// Definition lock (spec 01 §1): the first (a) on a device claims its full
+// definition atomically; any later conflicting load (mode, limit, or
+// ordered label list) → 400.
+if (!$deviceManager->claimDefinition($kbd)) {
+    http_response_code(400);
     $recordedMode = $deviceManager->getMode();
     $recordedLimit = $deviceManager->getLimit();
-    
-    if ($kbd->conflictsWith($recordedMode, $recordedLimit)) {
-        http_response_code(400);
-        $limitStr = $recordedLimit !== null ? " with limit=$recordedLimit" : "";
-        echo "Error: Device '$kb' already exists in $recordedMode mode$limitStr";
-        exit;
-    }
-} else {
-    // First access - record the mode
-    $deviceManager->recordMode($kbd->mode, $kbd->limit);
+    $limitStr = $recordedLimit !== null ? " with limit=$recordedLimit" : "";
+    echo "Error: Device '$kb' already exists in $recordedMode mode$limitStr with a different keyboard definition";
+    exit;
 }
 
 // Register labels and build label->id mapping
