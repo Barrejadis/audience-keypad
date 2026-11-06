@@ -78,7 +78,7 @@ Notes: the histogram packs a 9-bit counter per key id (9 bits hold any count up 
 
 ## 6. Aggregation — endpoint (c)
 
-**Request:** `POST admin.php`, `Content-Type: application/json`:
+**Request:** `POST probe.php`, `Content-Type: application/json`:
 
 ```json
 {
