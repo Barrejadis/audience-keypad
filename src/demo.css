@@ -92,6 +92,11 @@ button:active:not(:disabled) { background: #ddd; }
 
 #probe-list {
     width: 100%;
+    height: 150px;
+}
+
+#probe-program {
+    height: 200px;
 }
 
 #probe-result {

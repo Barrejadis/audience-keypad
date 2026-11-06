@@ -4,7 +4,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // fields, where it stays editable.
     var PROBES = [
         { description: 'count users', init: '1', program: 'v' },
-        { description: 'pressed keys', init: '0', program: 'if(k >= 0, v | (1 << k), v)' }
+        { description: 'pressed keys', init: '0', program: 'if(k >= 0, v | (1 << k), v)' },
+        { description: 'resulting integer', init: '0', program: 'if(k == key "1", v * 10 + 1,\nif(k == key "4", v * 10 + 4,\nif(k == key "7", v * 10 + 7,\nif(k == key "0", v * 10 + 0,\nif(k == key "2", v * 10 + 2,\nif(k == key "5", v * 10 + 5,\nif(k == key "8", v * 10 + 8,\nif(k == key "3", v * 10 + 3,\nif(k == key "6", v * 10 + 6,\nif(k == key "9", v * 10 + 9,\nv))))))))))' }
     ];
 
     var kbName = document.getElementById('kb-name');
