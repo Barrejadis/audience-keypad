@@ -27,19 +27,12 @@ class LabelRegistry
      */
     public function getOrCreateId(string $label): int
     {
-        $key = $this->registryKey($label);
-
-        if ($this->store->exists($key)) {
-            return (int)$this->store->get($key);
-        }
-
-        // Increment the next id counter
-        $nextKey = "kb:{$this->deviceName}:lab:next";
-        $nextId = $this->store->increment($nextKey);
-        $id = $nextId - 1;
-
-        $this->store->set($key, $id);
-        return $id;
+        // Atomic compute-if-absent: exactly one id is ever minted per label,
+        // even when concurrent first registrations race (see issue #26).
+        return (int)$this->store->getOrCompute(
+            $this->registryKey($label),
+            fn() => $this->store->increment("kb:{$this->deviceName}:lab:next") - 1
+        );
     }
 
     /**

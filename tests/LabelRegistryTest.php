@@ -104,4 +104,49 @@ class LabelRegistryTest extends TestCase
         $all = $registry->getAll();
         $this->assertArrayNotHasKey('next', $all);
     }
+
+    public function testCounterIncrementedOncePerDistinctLabel(): void
+    {
+        $store = new InMemoryKvStore();
+        $registry = new LabelRegistry('test', $store);
+
+        $idA1 = $registry->getOrCreateId('A');
+        $registry->getOrCreateId('B');
+        $idA2 = $registry->getOrCreateId('A');
+        $idA3 = $registry->getOrCreateId('A');
+        $registry->getOrCreateId('B');
+
+        // Repeats must not draw new ids: the counter equals the number of
+        // distinct labels, so the id sequence stays dense (issue #26).
+        $this->assertEquals(2, $store->get('kb:test:lab:next'));
+        $this->assertEquals(0, $idA1);
+        $this->assertEquals(0, $idA2);
+        $this->assertEquals(0, $idA3);
+    }
+
+    public function testRepeatedGetOrCreateIdDoesNotTouchCounter(): void
+    {
+        $store = new InMemoryKvStore();
+        $registry = new LabelRegistry('test', $store);
+
+        $id1 = $registry->getOrCreateId('A');
+        $id2 = $registry->getOrCreateId('A');
+
+        $this->assertEquals($id1, $id2);
+        $this->assertEquals(1, $store->get('kb:test:lab:next'));
+    }
+
+    public function testIdSequenceStaysDenseInFirstSeenOrder(): void
+    {
+        $store = new InMemoryKvStore();
+        $registry = new LabelRegistry('test', $store);
+
+        $ids = [];
+        foreach (['A', 'B', 'C', 'A', 'D', 'B'] as $label) {
+            $ids[$label] = $registry->getOrCreateId($label);
+        }
+
+        $this->assertEquals(['A' => 0, 'B' => 1, 'C' => 2, 'D' => 3], $ids);
+        $this->assertEquals(4, $store->get('kb:test:lab:next'));
+    }
 }

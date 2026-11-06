@@ -32,6 +32,11 @@ class ApcuKvStore implements KvStore
         return (int)apcu_inc($key);
     }
 
+    public function getOrCompute(string $key, callable $generator): mixed
+    {
+        return apcu_entry($key, $generator, 0);
+    }
+
     public function delete(string $key): void
     {
         apcu_delete($key);

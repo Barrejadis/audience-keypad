@@ -47,6 +47,14 @@ class InMemoryKvStore implements KvStore
         return $current + 1;
     }
 
+    public function getOrCompute(string $key, callable $generator): mixed
+    {
+        if (!array_key_exists($key, $this->data)) {
+            $this->data[$key] = $generator();
+        }
+        return $this->data[$key];
+    }
+
     public function delete(string $key): void
     {
         unset($this->data[$key]);
