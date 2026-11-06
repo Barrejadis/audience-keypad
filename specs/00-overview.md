@@ -13,7 +13,7 @@ This document is the corpus entry point: purpose and scope, system overview, con
 | [02 — The probe](02-probe.md) | functional | probe language, endpoint (c) admin aggregation, reset, test vectors |
 | [03 — Storage (APCu)](03-storage.md) | technical | storage schema, TTLs, user enumeration, memory bounds |
 | [04 — Security](04-security.md) | technical | hardened sessions, XSS, admin password, language boundary |
-| [05 — Aliases](05-alias.md) | functional | alias concept, alias entry (a), rerouting at (b), alias management (c) |
+| [05 — Aliases](05-alias.md) | functional | alias concept, alias entry (a), rerouting at (b), alias management (d) |
 
 ## 2. Purpose and scope
 
@@ -31,11 +31,12 @@ Out of scope (non-goals): persistence across server restarts, user authenticatio
 
 ## 3. System overview
 
-The PHP entry point serves three URLs over one APCu store:
+The PHP entry point serves four URLs over one APCu store:
 
 - **(a)** `GET` with a device name and a keyboard definition — or with an alias name resolved to the same definition (*Aliases*) — `limit=L` declares the device limited → HTML/CSS/JS page rendering that keyboard; in limited mode the page also permanently shows the user's whole confirmed keystroke history and an erase control.
 - **(b)** `POST` of a key id — or, in limited mode, of an undo command → append the keystroke to, or erase the last keystroke of, that user's log; a keystroke from a user whose alias has been retargeted is not recorded and triggers rerouting (*Aliases*).
 - **(c)** `POST` of admin password + init + probe program → JSON map of user → folded value.
+- **(d)** `POST` of admin password + an alias action (`alias` upsert / `alias-del`) → JSON `{"ok": true}` (*Aliases*).
 
 ```mermaid
 sequenceDiagram

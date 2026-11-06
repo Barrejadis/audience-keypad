@@ -41,7 +41,7 @@ if ($alias !== null) {
     }
 
     // Validate alias name
-    if (!preg_match(KB_NAME_RE, $alias)) {
+    if (!preg_match(ALIAS_RE, $alias)) {
         http_response_code(400);
         echo "Error: Invalid alias name";
         exit;
@@ -50,11 +50,18 @@ if ($alias !== null) {
     // Resolve alias
     $resolver = new AliasResolver($store);
     $definition = $resolver->resolve($alias);
-    
+
     if ($definition === null) {
-        // Unknown alias -> 404
+        // Unknown alias -> 404, the system's only 404: a well-formed name
+        // with no binding, as opposed to the 400 family of malformed requests.
         http_response_code(404);
-        echo "Error: Unknown alias '$alias'";
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<!DOCTYPE html>' . "\n"
+            . '<html lang="en">' . "\n"
+            . '<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Unknown alias</title></head>' . "\n"
+            . '<body><p>Unknown alias <strong>' . htmlspecialchars($alias, ENT_QUOTES) . '</strong>.</p>' . "\n"
+            . '<p>This link has no binding. Ask the administrator for a valid link.</p></body>' . "\n"
+            . '</html>';
         exit;
     }
 
@@ -121,9 +128,12 @@ foreach ($kbd->getActiveLabels() as $label) {
 // Store user's active key set
 $deviceManager->storeUserKeys($uid, $userKeyIds);
 
-// If entered via alias, record the entry marker
+// Entry marker: alias entry records it, direct entry clears any existing
+// one (last entry wins — a direct entrant is never rerouted).
 if ($aliasName !== null) {
     $deviceManager->recordAliasEntry($uid, $aliasName);
+} else {
+    $deviceManager->clearAliasEntry($uid);
 }
 
 // For limited mode, get user's history

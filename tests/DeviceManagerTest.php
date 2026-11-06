@@ -123,6 +123,42 @@ class DeviceManagerTest extends TestCase
         $this->assertNull($alias);
     }
 
+    public function testClearAliasEntry(): void
+    {
+        $store = new InMemoryKvStore();
+        $manager = new DeviceManager('test-device', $store);
+        $uid = 'test-user-' . uniqid();
+
+        $manager->recordAliasEntry($uid, 'my-alias');
+        $manager->clearAliasEntry($uid);
+
+        $this->assertNull($manager->getAliasEntry($uid));
+        $this->assertFalse($store->exists("kb:test-device:u:$uid:via"));
+    }
+
+    public function testClearAliasEntryWithoutMarkerIsNoOp(): void
+    {
+        $manager = new DeviceManager('test-device', new InMemoryKvStore());
+        $uid = 'test-user-' . uniqid();
+
+        $manager->clearAliasEntry($uid); // must not throw
+
+        $this->assertNull($manager->getAliasEntry($uid));
+    }
+
+    public function testAliasEntryIsPerDevice(): void
+    {
+        $store = new InMemoryKvStore();
+        $uid = 'test-user-' . uniqid();
+        $manager1 = new DeviceManager('device-1', $store);
+        $manager2 = new DeviceManager('device-2', $store);
+
+        $manager1->recordAliasEntry($uid, 'my-alias');
+
+        $this->assertSame('my-alias', $manager1->getAliasEntry($uid));
+        $this->assertNull($manager2->getAliasEntry($uid));
+    }
+
     public function testDeviceIsolation(): void
     {
         $store = new InMemoryKvStore();

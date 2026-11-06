@@ -22,6 +22,7 @@
             <file>../src/index.php</file>
             <file>../src/keystroke.php</file>
             <file>../src/probe.php</file>
+            <file>../src/alias.php</file>
         </exclude>
     </source>
 </phpunit>

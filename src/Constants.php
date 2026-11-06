@@ -4,6 +4,7 @@ declare(strict_types=1);
 const MAX_STROKES = 300;
 const KB_TTL = 3600;
 const KB_NAME_RE = '/^[A-Za-z0-9_-]{1,32}$/';
+const ALIAS_RE = KB_NAME_RE; // alias names reuse the device name pattern (Aliases spec §6)
 
 const MAX_PROGRAM_SIZE = 2048; // probe program size cap (chars)
 const MAX_STATE_BITS = 4096;   // per-step state width cap (bits)

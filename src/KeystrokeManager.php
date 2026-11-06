@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/Constants.php';
 require_once __DIR__ . '/KvStore.php';
 require_once __DIR__ . '/DeviceManager.php';
+require_once __DIR__ . '/AliasResolver.php';
 
 /**
  * Keystroke capture and undo for one device (endpoint (b) domain logic).
@@ -65,6 +66,15 @@ class KeystrokeManager
      */
     public function record(string $uid, int $keyId): array
     {
+        // Routing check (spec 05-alias §5), before the command processing:
+        // a user who entered this device via an alias is rerouted when the
+        // alias is deleted or retargeted to another device. The keystroke is
+        // dropped — nothing is recorded or budgeted.
+        $reroute = $this->checkReroute($uid);
+        if ($reroute !== null) {
+            return $reroute;
+        }
+
         // The key id must be one of the user's active keys on this device;
         // this also rejects wrong device names and sessions that never
         // loaded a keyboard here.
@@ -97,6 +107,12 @@ class KeystrokeManager
      */
     public function undo(string $uid): array
     {
+        // Routing check applies to undo as well (spec 05-alias §5)
+        $reroute = $this->checkReroute($uid);
+        if ($reroute !== null) {
+            return $reroute;
+        }
+
         if ($this->devices->getMode() !== 'limited') {
             return self::error(400, 'Undo is only available on a limited device');
         }
@@ -112,6 +128,32 @@ class KeystrokeManager
         $this->refreshKeysTtl($uid);
 
         return ['status' => 200, 'body' => ['ok' => true, 'remaining' => $limit - ($n - 1)]];
+    }
+
+    /**
+     * Rerouting check: if the user entered this device through an alias
+     * (entry marker kb:{dev}:u:{uid}:via), resolve the alias's current
+     * binding. Unchanged (target equals this device) → null, normal
+     * processing. Deleted or retargeted → 409 with reroute=true. The
+     * modification criterion is the target device name only.
+     *
+     * @return array{status: int, body: array<string, mixed>}|null
+     */
+    private function checkReroute(string $uid): ?array
+    {
+        $via = $this->devices->getAliasEntry($uid);
+        if ($via === null) {
+            return null;
+        }
+
+        $resolver = new AliasResolver($this->store);
+        $definition = $resolver->resolve($via);
+
+        if ($definition !== null && $definition['kb'] === $this->deviceName) {
+            return null;
+        }
+
+        return ['status' => 409, 'body' => ['ok' => false, 'reroute' => true]];
     }
 
     /**

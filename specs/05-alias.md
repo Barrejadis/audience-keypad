@@ -2,7 +2,7 @@
 
 **Functional specification · Status:** Draft · **Normative language:** the key words MUST, MUST NOT, SHOULD, and MAY are to be interpreted as in RFC 2119.
 
-Covers: the alias concept; alias definitions and storage; entry via alias — endpoint (a); alias management actions — endpoint (c); the rerouting rule at endpoint (b); test scenario.
+Covers: the alias concept; alias definitions and storage; entry via alias — endpoint (a); alias management actions — endpoint (d) (`alias.php`); the rerouting rule at endpoint (b); test scenario.
 Depends on: [Overview](00-overview.md) (concepts, invariants) · [The keyboard](01-keyboard.md) (endpoint processing, validation, rendering) · [The probe](02-probe.md) (admin channel, actions) · [Storage (APCu)](03-storage.md) (schema) · [Security](04-security.md) (admin auth).
 
 ## 1. Concept
@@ -49,9 +49,9 @@ The served page's URL is the alias URL; it embeds the resolved device name for i
 
 **Direct entry.** `GET ?kb=NAME` (no alias) processes exactly as in *The keyboard* and sets no marker — it also clears any existing marker on that device: **last entry wins**. A user who entered directly is never rerouted (§5).
 
-## 4. Alias management — endpoint (c)
+## 4. Alias management — endpoint (d) (`alias.php`)
 
-Alias actions travel on the admin channel of (c) (*The probe* §6), with the same password authentication (*Security*): `password` in the POST body, compared with `hash_equals` against `ADMIN_HASH`; mismatch → `401`.
+Alias actions travel on a dedicated endpoint, `alias.php` (JSON POST body), not on the admin channel of (c): `probe.php` stays probe-only. Authentication is the same as (c) (*Security*): `password` in the POST body, compared with `hash_equals` against `ADMIN_HASH`; mismatch → `401`.
 
 | Action | Request | Effect |
 |---|---|---|
@@ -91,7 +91,7 @@ No other constant: an alias definition reuses the validation of (a) (*The keyboa
 
 | Status | Condition |
 |---|---|
-| `400` | (a): `alias` combined with any of `kb`/`keys`/`limit`; malformed alias name. (c): alias action with a structurally invalid definition |
+| `400` | (a): `alias` combined with any of `kb`/`keys`/`limit`; malformed alias name. (d): alias action with a structurally invalid definition |
 | `401` | Admin password mismatch on an alias action |
 | `404` | (a): well-formed alias name with no binding |
 | `409` | (b): user entered via an alias that is deleted or retargeted to another device |
