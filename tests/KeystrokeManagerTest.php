@@ -27,7 +27,11 @@ class KeystrokeManagerTest extends TestCase
     {
         $this->store = new InMemoryKvStore();
         $devices = new DeviceManager($device, $this->store);
-        $devices->recordMode($mode, $limit);
+        $devices->claimDefinition(KeyboardDefinition::fromParameters(
+            $device,
+            'A,B,C,D',
+            $limit !== null ? (string)$limit : null
+        ));
         $devices->storeUserKeys($uid, $keyIds);
         return new KeystrokeManager($device, $this->store);
     }
@@ -249,10 +253,10 @@ class KeystrokeManagerTest extends TestCase
     {
         $this->store = new InMemoryKvStore();
         $devicesA = new DeviceManager('devA', $this->store);
-        $devicesA->recordMode('limited', 1);
+        $devicesA->claimDefinition(KeyboardDefinition::fromParameters('devA', 'A', '1'));
         $devicesA->storeUserKeys(self::UID, [0]);
         $devicesB = new DeviceManager('devB', $this->store);
-        $devicesB->recordMode('limited', 1);
+        $devicesB->claimDefinition(KeyboardDefinition::fromParameters('devB', 'A', '1'));
         $devicesB->storeUserKeys(self::UID, [0]);
 
         $managerA = new KeystrokeManager('devA', $this->store);
@@ -282,7 +286,11 @@ class KeystrokeManagerTest extends TestCase
     {
         $this->store = new InMemoryKvStore();
         $devices = new DeviceManager($device, $this->store);
-        $devices->recordMode($mode, $limit);
+        $devices->claimDefinition(KeyboardDefinition::fromParameters(
+            $device,
+            'A,B,C,D',
+            $limit !== null ? (string)$limit : null
+        ));
         $devices->storeUserKeys($uid, $keyIds);
         $devices->recordAliasEntry($uid, $alias);
         $resolver = new AliasResolver($this->store);
@@ -396,7 +404,7 @@ class KeystrokeManagerTest extends TestCase
         // A stale marker on act1 does not affect the same user on act2.
         $manager1 = $this->setupAliasedDevice('act1', 'act', 'act2'); // already retargeted
         $devices2 = new DeviceManager('act2', $this->store);
-        $devices2->recordMode('main', null);
+        $devices2->claimDefinition(KeyboardDefinition::fromParameters('act2', 'A,B', null));
         $devices2->storeUserKeys(self::UID, [0, 1]);
         $manager2 = new KeystrokeManager('act2', $this->store);
 

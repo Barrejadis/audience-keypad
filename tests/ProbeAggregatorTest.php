@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/Constants.php';
 require_once __DIR__ . '/../src/KvStore.php';
 require_once __DIR__ . '/../src/LabelRegistry.php';
+require_once __DIR__ . '/../src/KeyboardDefinition.php';
 require_once __DIR__ . '/../src/DeviceManager.php';
 require_once __DIR__ . '/../src/KeystrokeManager.php';
 require_once __DIR__ . '/../src/ProbeException.php';
@@ -35,7 +36,7 @@ class ProbeAggregatorTest extends TestCase
     private function setupDevice(string $device): void
     {
         $devices = new DeviceManager($device, $this->store);
-        $devices->recordMode('main', null);
+        $devices->claimDefinition(KeyboardDefinition::fromParameters($device, 'A,B,C,D', null));
         $registry = new LabelRegistry($device, $this->store);
         foreach (['←', '→', '↑', '↓'] as $label) {
             $registry->getOrCreateId($label);
@@ -110,7 +111,7 @@ class ProbeAggregatorTest extends TestCase
         // quiz device, H3 = [→, ↑, ←] = [1, 2, 0] after an undo
         $this->setupDevice('quiz');
         $devices = new DeviceManager('quiz', $this->store);
-        $devices->recordMode('limited', 3);
+        $devices->claimDefinition(KeyboardDefinition::fromParameters('quiz', 'A,B,C,D', '3'));
         $this->addUser('carol', [1, 2, 0], 'quiz');
 
         $this->assertSame(['carol' => '3'], $this->probe('0', 'v + 1', 'quiz')['body']);

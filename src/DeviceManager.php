@@ -56,36 +56,55 @@ class DeviceManager
     }
 
     /**
-     * Record the device mode and limit (first access).
+     * Claim the device's definition lock (spec 01 §1 "Device definition").
      *
-     * @param string $mode 'main' or 'limited'
-     * @param int|null $limit The limit for limited mode
-     */
-    public function recordMode(string $mode, ?int $limit): void
-    {
-        $this->store->set("kb:{$this->deviceName}:mode", $mode);
-        if ($limit !== null) {
-            $this->store->set("kb:{$this->deviceName}:limit", $limit);
-        }
-    }
-
-    /**
-     * Validate a keyboard definition against recorded device state.
+     * The first (a) served on a device records the full definition — the
+     * ordered label list (kb:{dev}:keys, JSON, no TTL), the mode, and the
+     * limit when present — and never changes it afterwards. Each record is
+     * claimed atomically via KvStore::getOrCompute, in a fixed order, and
+     * compared immediately after its claim: a concurrent cold load with a
+     * different definition loses at the first divergent record and never
+     * writes past it, so exactly one of two racing claims succeeds.
      *
      * @param KeyboardDefinition $definition
-     * @return bool True if valid, false if there's a conflict
+     * @return bool True if the device's recorded definition is exactly this
+     *              one (claimed now or by an earlier identical load),
+     *              false on any conflict (mode, limit, or label list)
      */
-    public function validateDefinition(KeyboardDefinition $definition): bool
+    public function claimDefinition(KeyboardDefinition $definition): bool
     {
-        $recordedMode = $this->getMode();
-        $recordedLimit = $this->getLimit();
-
-        if ($recordedMode === null) {
-            // First access - always valid
-            return true;
+        // 1. Ordered label list — claimed atomically; the first claim defines it.
+        $claimedKeys = (string)$this->store->getOrCompute(
+            "kb:{$this->deviceName}:keys",
+            fn() => json_encode($definition->labels)
+        );
+        $recordedLabels = json_decode($claimedKeys, true);
+        if (!is_array($recordedLabels) || $recordedLabels !== $definition->labels) {
+            return false;
         }
 
-        // Check for conflict
+        // 2. Mode — claimed atomically as well.
+        $recordedMode = (string)$this->store->getOrCompute(
+            "kb:{$this->deviceName}:mode",
+            fn() => $definition->mode
+        );
+        if ($recordedMode !== $definition->mode) {
+            return false;
+        }
+
+        // 3. Limit — present exactly on limited devices, claimed atomically.
+        // A main-mode definition must find no limit record at all.
+        if ($definition->limit !== null) {
+            $recordedLimit = (int)$this->store->getOrCompute(
+                "kb:{$this->deviceName}:limit",
+                fn() => $definition->limit
+            );
+        } elseif ($this->store->exists("kb:{$this->deviceName}:limit")) {
+            $recordedLimit = (int)$this->store->get("kb:{$this->deviceName}:limit");
+        } else {
+            $recordedLimit = null;
+        }
+
         return !$definition->conflictsWith($recordedMode, $recordedLimit);
     }
 
