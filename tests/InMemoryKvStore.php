@@ -4,12 +4,16 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/KvStore.php';
 
 /**
- * Pure in-memory KvStore fake for unit tests. TTLs are not simulated.
+ * Pure in-memory KvStore fake for unit tests. Expiry is not simulated, but
+ * the TTL passed to each set() is recorded so tests can assert TTL refreshes.
  */
 class InMemoryKvStore implements KvStore
 {
     /** @var array<string, mixed> */
     private array $data = [];
+
+    /** @var array<string, int|null> Last TTL passed to set(), per key */
+    private array $ttls = [];
 
     public function exists(string $key): bool
     {
@@ -24,6 +28,16 @@ class InMemoryKvStore implements KvStore
     public function set(string $key, mixed $value, ?int $ttl = null): void
     {
         $this->data[$key] = $value;
+        $this->ttls[$key] = $ttl;
+    }
+
+    /**
+     * The TTL recorded by the last set() on this key (null = no expiry),
+     * or null when the key was never set.
+     */
+    public function ttlOf(string $key): ?int
+    {
+        return $this->ttls[$key] ?? null;
     }
 
     public function increment(string $key): int
@@ -36,6 +50,7 @@ class InMemoryKvStore implements KvStore
     public function delete(string $key): void
     {
         unset($this->data[$key]);
+        unset($this->ttls[$key]);
     }
 
     public function entriesWithPrefix(string $prefix): array
