@@ -21,7 +21,7 @@ A web-based virtual device with up to 25 labeled keys. Multiple anonymous users 
 
 Core principle: **capture is interpretation-free**. The system records only key identities at press time; all semantics live in the probe program submitted at query time. New interpretations of the same history require no change to capture or storage.
 
-Capture offers two modes, and the mode is a property of the **device**: **main** (a plain keyboard page with no on-device feedback — typical use: continuous activity such as a game, whose feedback lives on another display) and **limited** (each user gets a small stroke budget `L` with `0 < L ≤ MAX_STROKES`; their whole keystroke history on the device is permanently displayed and the last keystroke can be erased — typical use: entering a choice in answer to a question). A device name is used in exactly one mode, fixed at first load. Both modes record into the same per-user log; the mode constrains capture and feedback only — never interpretation.
+Capture offers two modes, and the whole keyboard definition is a property of the **device**: **main** (a plain keyboard page with no on-device feedback — typical use: continuous activity such as a game, whose feedback lives on another display) and **limited** (each user gets a small stroke budget `L` with `0 < L ≤ MAX_STROKES`; their whole keystroke history on the device is permanently displayed and the last keystroke can be erased — typical use: entering a choice in answer to a question). A device name is used with exactly one keyboard definition — mode and ordered label list — claimed atomically at first load and never changed afterwards. Both modes record into the same per-user log; the mode constrains capture and feedback only — never interpretation.
 
 The administrator may also publish **aliases**: stable public names bound to device definitions, so that users follow a single URL through a sequence of devices without any manual re-initialization; a rebound alias carries its users to the new target at their next keystroke (*Aliases*).
 
@@ -66,12 +66,12 @@ Key properties:
 
 | Concept | Definition |
 |---|---|
-| Device | A named instance (the `kb` request parameter) owning its own keyboards, user logs, and label registry. The unit of isolation and reset. |
+| Device | A named instance (the `kb` request parameter) owning its own keyboard, user logs, and label registry. The unit of isolation and reset. |
 | Keyboard | A grid of cells; each cell is *active* (has a label) or *inactive*. |
 | Label | A non-comma string naming a key. Must be unique among the active keys of a keyboard. |
 | Key id | A non-negative integer assigned to a label by the global label registry, in first-seen order. |
 | Keystroke | One key id, recorded at an integer index in the pressing user's log. |
-| Device mode | Whether a device is main or limited; recorded by the first (a) served on it (presence of `limit`), stored device-wide, never changed afterwards — a different run uses a fresh device name. |
+| Device definition | The device's single keyboard definition: mode (main or limited), stroke budget when limited, and the ordered label list. Claimed atomically by the first (a) served on the device, stored device-wide, never changed afterwards — a different run uses a fresh device name. |
 | User | An anonymous browser session; the user id `uid` is the PHP session id. |
 | Probe | A pair *(init, program)*: an integer initial value plus one pure expression over `v` (state) and `k` (key id). |
 | Alias | A stable public name bound by the admin to a device definition; resolved at (a), rerouting its users at (b) when retargeted (*Aliases*). |
@@ -82,9 +82,9 @@ Both invariants are normative and bind the whole corpus.
 
 **Label-based key identity.** Key ids are content-addressed (by label), never position-derived. They are assigned per device, in first-seen order, and remain stable for as long as the device's keystroke logs live. Intended consequences:
 
-- Reordering keys, changing the grid size, or moving inactive cells around affects neither the ids nor existing probes.
+- A device serves exactly one keyboard definition (claimed atomically at first load), so ids are a device-wide constant: every id ever seen on the device belongs to a label of that single keyboard, and logs, feedback displays, and probes never meet an unfamiliar id.
 - Renaming a label referenced by a probe fails loudly at request parse time (`422 unknown label`), never silently.
-- Two keyboards of the same device that share a label share its id; a device's probe vocabulary is the set of labels ever served on that device, not any single keyboard's layout. Devices have fully independent id spaces.
+- Devices have fully independent id spaces.
 
 Id attribution is specified in *The keyboard*, resolution at query time in *The probe*, and the registry's storage rules in *Storage (APCu)*.
 
@@ -103,3 +103,4 @@ The normative value of each constant lives in the document that applies it; this
 | `KEYBOARD_SIZES` | 9 admitted capacities | *The keyboard* — geometry (normative table) |
 | `KB_NAME_RE` | `/^[A-Za-z0-9_-]{1,32}$/` | *The keyboard* — device name pattern |
 | `ADMIN_HASH` | SHA-256 hex of the admin password | *The probe* — admin authentication |
+
