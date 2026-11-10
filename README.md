@@ -27,7 +27,7 @@ Deployment is a copy: copy the contents of `src/` to the server. Nothing else sh
 
 ## Usage
 
-Four endpoints (relative to where you deployed `src/`):
+Five endpoints (relative to where you deployed `src/`):
 
 | Endpoint | Method | Purpose |
 |---|---|---|
@@ -35,6 +35,7 @@ Four endpoints (relative to where you deployed `src/`):
 | `keystroke.php` | POST | Record a keystroke, or undo the last one |
 | `probe.php` | POST | Admin: run a probe, or reset a device |
 | `alias.php` | POST | Admin: create, rebind, or delete an alias |
+| `admin.php` | POST | Admin: clean start (wipe all keypad data) |
 
 **Serve a keyboard:**
 
@@ -65,6 +66,19 @@ POST probe.php
 ```
 
 The response maps every user id to its folded value: `{"abc123...": "2", "def456...": "0"}`. The probe language is closed (no loops, no recursion, no I/O) with arbitrary-precision integers; reference probes include `v + 1` (count), `v ^ k` (checksum), `k` (last key), `v + (1 << (k * 9))` (histogram), and plain `v` (presence/headcount). `{"action": "reset"}` wipes a device's whole namespace.
+
+**Clean start** (wipe everything, e.g. before a new show) — only keys owned by the keypad (`kb:*` devices and `alias:*` bindings) are deleted; unrelated APCu entries on the same host are untouched. The destructive action requires the admin password plus an explicit `confirm` flag:
+
+```json
+POST admin.php
+{
+  "password": "secret",
+  "action": "clean-start",
+  "confirm": true
+}
+```
+
+→ `200 {"ok":true,"keys_removed":42,"devices":2,"sessions":7,"aliases":1,"remaining":0}` — the report of what was cleared, with `remaining: 0` confirming the clean state.
 
 **Admin password:** compared as SHA-256 against the `ADMIN_HASH` constant in `src/Constants.php`. The default password is `admin` — change it before real use by replacing the constant with the hash of a new password.
 

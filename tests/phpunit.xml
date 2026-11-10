@@ -23,6 +23,7 @@
             <file>../src/keystroke.php</file>
             <file>../src/probe.php</file>
             <file>../src/alias.php</file>
+            <file>../src/admin.php</file>
         </exclude>
     </source>
 </phpunit>
