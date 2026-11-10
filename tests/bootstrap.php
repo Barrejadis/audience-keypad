@@ -21,7 +21,8 @@ if (!defined('TEST_BOOTSTRAP')) {
         if (strpos($basename, 'index.php') === 0 ||
             strpos($basename, 'keystroke.php') === 0 ||
             strpos($basename, 'probe.php') === 0 ||
-            strpos($basename, 'alias.php') === 0) {
+            strpos($basename, 'alias.php') === 0 ||
+            strpos($basename, 'admin.php') === 0) {
             continue;
         }
         require_once $file;

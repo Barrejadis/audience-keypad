@@ -24,6 +24,8 @@ document.addEventListener('DOMContentLoaded', function() {
     var probeProgram = document.getElementById('probe-program');
     var runProbeBtn = document.getElementById('run-probe');
     var probeResult = document.getElementById('probe-result');
+    var cleanStartBtn = document.getElementById('clean-start');
+    var cleanStatus = document.getElementById('clean-status');
 
     var probeInFlight = false;
 
@@ -56,6 +58,7 @@ document.addEventListener('DOMContentLoaded', function() {
         defineAliasBtn.disabled = !(val(aliasPassword) && val(aliasName) && name && keys);
         openAliasBtn.disabled = !val(aliasName);
         runProbeBtn.disabled = probeInFlight || !(name && val(aliasPassword) && val(probeInit) && val(probeProgram));
+        cleanStartBtn.disabled = !val(aliasPassword);
     }
 
     [kbName, kbKeys, kbLimit, aliasPassword, aliasName, probeInit, probeProgram].forEach(function(el) {
@@ -120,6 +123,23 @@ document.addEventListener('DOMContentLoaded', function() {
         aliasStatus.textContent = '…';
         postJson('alias.php', body, function(status, data) {
             aliasStatus.textContent = showJson(status, data);
+        });
+    });
+
+    // Clean start wipes every keypad key in APCu (all devices, sessions and
+    // aliases) — destructive, so it asks for confirmation first and the
+    // endpoint requires an explicit confirm flag on top of the password.
+    cleanStartBtn.addEventListener('click', function() {
+        if (!window.confirm('Wipe ALL keypad data (every device, session, and alias)? This cannot be undone.')) {
+            return;
+        }
+        cleanStatus.textContent = '…';
+        postJson('admin.php', {
+            password: val(aliasPassword),
+            action: 'clean-start',
+            confirm: true
+        }, function(status, data) {
+            cleanStatus.textContent = showJson(status, data);
         });
     });
 
